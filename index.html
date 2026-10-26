@@ -45,7 +45,11 @@
   .uses label { margin-right: 6px; font-size: 13px; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
   .intro { margin: -6px 0 16px; color: var(--muted); }
-  button.big { font-size: 20px; padding: 14px 28px; margin: 0 12px 12px 0; min-width: 180px; }
+  button.big { font-size: 22px; font-weight: 700; padding: 22px 32px 18px; margin: 0 14px 14px 0; min-width: 220px; border-radius: 12px; border: 2px solid var(--accent); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 6%, transparent)); color: inherit; cursor: pointer; transition: transform .12s, box-shadow .12s, background .12s; }
+  button.big:hover { transform: translateY(-3px); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 34%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)); }
+  button.big:active { transform: translateY(0); box-shadow: none; }
+  button.big .note { display: inline-block; margin-top: 6px; padding: 1px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+  button.big.z1 { --accent: #2f9e44; } button.big.z2 { --accent: #3b6fd4; }
   #landing p { margin-bottom: 14px; }
   a.bugbanner { display: block; margin: 0 0 20px; padding: 14px 18px; border: 2px solid #d97706; border-radius: 8px; background: #fef3c7; color: #7c2d12; font-size: 22px; font-weight: 700; text-align: center; text-decoration: none; }
   a.bugbanner:hover { background: #fde68a; }
@@ -95,8 +99,8 @@ so the Export buttons can't save anything here. Download "NES Custom Music Tool.
     </ol>
   </details>
   <p>Which game is the music pack for?</p>
-  <button class="big" id="pick-z1">Zelda 1<br><span class="note">ZORA</span></button>
-  <button class="big" id="pick-z2">Zelda 2<br><span class="note">Z2R</span></button>
+  <button class="big z1" id="pick-z1">Zelda 1<br><span class="note">ZORA</span></button>
+  <button class="big z2" id="pick-z2">Zelda 2<br><span class="note">Z2R</span></button>
   <p class="note" id="landingNote"></p>
 </section>
 
