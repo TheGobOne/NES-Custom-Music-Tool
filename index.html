@@ -148,7 +148,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <button id="normalize">Normalize volumes</button>
   <button id="collapseAll">Collapse all</button> <button id="expandAll">Expand all</button>
   <input type="search" id="search" placeholder="Search games and tracks…" style="min-width:16em">
-  <button id="gameListBtn">Show Game List</button>
+  <button id="gameListBtn">Show game list</button>
   <div id="gameList" class="gamelist" hidden></div>
   <label>Target level <input type="number" id="target" value="100" min="30" max="150" step="5"> %</label>
   <label title="How far from the target a track may be and still count as within range (Normalize leaves those alone)">Safety range ± <input type="number" id="safety" value="10" min="1" max="50" step="1"> %</label>
@@ -190,7 +190,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <legend>Use for: what's covered</legend>
   <div id="coverageSummary"></div>
   <div id="coverageList"></div>
-  <div class="hint">Counts ticked tracks only. Every use doesn't need a track, but the game sounds better when each has
+  <div class="hint">Counts ticked tracks only. Not every use needs a track, but the game sounds better when each has
   at least one (more gives more variety). Click a use to see its tracks.</div>
 </fieldset>
 
@@ -3219,7 +3219,7 @@ async function saveFile(text, name, kind = { description: "JSON5 music pack", ac
   return name + " (to your downloads folder)";
 }
 
-// Show Game List: every game's title, alphabetically.
+// Show game list: every game's title, alphabetically.
 function renderGameList() {
   refreshRadioOptions();
   const titles = groups.map(g => g.title.trim() || "(untitled)");
@@ -3234,7 +3234,7 @@ function renderGameList() {
 $("gameListBtn").addEventListener("click", () => {
   const box = $("gameList");
   box.hidden = !box.hidden;
-  $("gameListBtn").textContent = box.hidden ? "Show Game List" : "Hide Game List";
+  $("gameListBtn").textContent = box.hidden ? "Show game list" : "Hide game list";
 });
 
 $("collapseAll").addEventListener("click", () => groups.forEach(g => setCollapsed(g, true)));
