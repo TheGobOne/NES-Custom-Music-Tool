@@ -47,6 +47,9 @@
   .intro { margin: -6px 0 16px; color: var(--muted); }
   button.big { font-size: 20px; padding: 14px 28px; margin: 0 12px 12px 0; min-width: 180px; }
   #landing p { margin-bottom: 14px; }
+  a.bugbanner { display: block; margin: 0 0 20px; padding: 14px 18px; border: 2px solid #d97706; border-radius: 8px; background: #fef3c7; color: #7c2d12; font-size: 22px; font-weight: 700; text-align: center; text-decoration: none; }
+  a.bugbanner:hover { background: #fde68a; }
+  @media (prefers-color-scheme: dark) { a.bugbanner { background: #78350f; color: #fef3c7; border-color: #f59e0b; } a.bugbanner:hover { background: #92400e; } }
   details.howto { margin: 0 0 16px; max-width: 760px; } details.howto summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
   details.howto li { margin-bottom: 6px; }
   .radioopts { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
@@ -75,6 +78,7 @@
 so the Export buttons can't save anything here. Download "NES Custom Music Tool.html" and open it in Chrome, Edge or Firefox.</p>
 
 <section id="landing">
+  <a class="bugbanner" href="https://github.com/TheGobOne/NES-Custom-Music-Tool/issues" target="_blank" rel="noopener">🐞 Report bugs as Issues on GitHub</a>
   <p class="intro">Turns NES music (NSF / NSFe files) into a music pack for a Zelda randomizer.
   Everything runs in this page; nothing is uploaded anywhere.</p>
   <details class="howto" open><summary>How to use</summary>
