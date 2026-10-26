@@ -2724,7 +2724,15 @@ function addRow(g, t) {
   nameBox.addEventListener("input", () => { nameBox.value = nameBox.value.replace(/[\r\n]+/g, " "); t.name = nameBox.value; fitName(nameBox); });
   nameBox.addEventListener("change", updateCoverage);
   requestAnimationFrame(() => fitName(nameBox));
-  tr.querySelector(".on").addEventListener("change", e => { t.enabled = e.target.checked; placeRows(g); showCount(g); });
+  tr.querySelector(".on").addEventListener("change", e => {
+    // Ticking moves the row to the other section; keep the rows around it where they were on screen.
+    let a = tr.nextElementSibling;
+    while (a && (a.hidden || a.classList.contains("group"))) a = a.nextElementSibling;
+    if (!a) { a = tr.previousElementSibling; while (a && (a.hidden || a.classList.contains("group"))) a = a.previousElementSibling; }
+    const top = a ? a.getBoundingClientRect().top : 0;
+    t.enabled = e.target.checked; placeRows(g); showCount(g);
+    if (a && a.isConnected && !a.hidden) window.scrollBy(0, a.getBoundingClientRect().top - top);
+  });
   t.usesCell = tr.querySelector("td.uses");
   fillUses(t);
   tr.querySelector(".loop").addEventListener("change", e => { t.loop = e.target.checked; if (playing === t) play(t); });
