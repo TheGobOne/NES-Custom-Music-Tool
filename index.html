@@ -54,6 +54,7 @@
   a.bugbanner { display: block; margin: 0 0 20px; padding: 14px 18px; border: 2px solid #d97706; border-radius: 8px; background: #fef3c7; color: #7c2d12; font-size: 22px; font-weight: 700; text-align: center; text-decoration: none; }
   a.bugbanner:hover { background: #fde68a; }
   @media (prefers-color-scheme: dark) { a.bugbanner { background: #78350f; color: #fef3c7; border-color: #f59e0b; } a.bugbanner:hover { background: #92400e; } }
+  footer.disclaimer { margin: 36px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 900px; }
   details.howto { margin: 0 0 16px; max-width: 760px; } details.howto summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
   details.howto li { margin-bottom: 6px; }
   .radioopts { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
@@ -3223,5 +3224,11 @@ $("expandAll").addEventListener("click", () => groups.forEach(g => setCollapsed(
 
 refreshButtons();
 </script>
+<footer class="disclaimer">
+  <b>Disclaimer:</b> NES Custom Music Tool is an unofficial fan-made tool. It is not affiliated with or endorsed by Nintendo, Capcom, Konami, Square Enix,
+  or the ZORA and Z2R randomizer projects. Game and music names belong to their owners. No ROMs, music or game files are included here: you supply your own,
+  and you are responsible for having the right to use them. Provided as is, with no warranty; conversions may be imperfect.
+  Everything runs in your browser and nothing is uploaded.
+</footer>
 </body>
 </html>
