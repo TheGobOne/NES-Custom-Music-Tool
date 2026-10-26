@@ -54,6 +54,9 @@
   #coverageList ul { margin: 2px 0 6px; padding-left: 20px; font-size: 13px; color: var(--muted); }
   .note { color: var(--muted); font-size: 13px; }
   .uses label { margin-right: 6px; font-size: 13px; }
+  details.helpd { margin-top: 6px; font-size: 13px; }
+  details.helpd > summary { color: var(--muted); cursor: pointer; width: max-content; }
+  details.helpd[open] > summary { margin-bottom: 2px; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
   .intro { margin: -6px 0 16px; color: var(--muted); }
   button.big { font-size: 22px; font-weight: 700; padding: 22px 32px 18px; margin: 0 14px 14px 0; min-width: 220px; border-radius: 12px; border: 2px solid var(--accent); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 6%, transparent)); color: inherit; cursor: pointer; transition: transform .12s, box-shadow .12s, background .12s; }
@@ -131,11 +134,13 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <label>Preview volume <input type="range" id="pvol" min="0" max="100" value="40"> <span id="pvolText">40%</span></label>
   <span class="note">(your speakers only; doesn't change the export)</span>
   <div id="status">Add NSF / NSFe music files, JSON5 music packs, .zip / .7z archives or whole folders, or drag them onto this page.</div>
+  <details class="helpd"><summary>Show help</summary>
   <div class="hint">Re-import: pick the original NSF / NSFe files (or their zip, 7z or folder) of games already in the list. Their tracks
   are converted fresh, at Vol 100% (normalize again afterwards), and keep which tracks are ticked, their Use for tags, names and Loop.
   Use it when a pack's tracks have been rescaled too often and sound thin.</div>
   <div class="hint">Track names: an .nsfe file has them built in. For a plain .nsf, add its .m3u playlist files with it (adding the
   whole folder or archive does that). Either way only the playlist's tracks are listed (rips also contain sound effects).</div>
+  </details>
 </fieldset>
 
 <fieldset id="meta" hidden>
@@ -150,6 +155,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <div id="normNote" class="normnote" hidden></div>
   <details id="rescaleList" class="rescale" hidden><summary></summary><div class="rescaleBody"></div>
     <button id="rescaleAnyway">Rescale them anyway</button></details>
+  <details class="helpd"><summary>Show help</summary>
   <div class="hint">Normalize measures how loud each track plays and sets its Vol % so it reaches the target level: a fixed loudness,
   so tracks you add later match ones you normalized before. Tracks already within the Safety range of the target (±10% unless you change it) are within range and left exactly as they are,
   so normalizing a library again changes nothing. Lower the target to make everything quieter in the game (the tool remembers it).
@@ -160,6 +166,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   "Use for" picks where <span class="mRando"></span> may place each track. "Loop" repeats the track (from its
   loop point, or from the start for a track that normally plays once); unticked, it plays once and then goes silent. The tool also marks which pulse channel
   carries the melody (its guess: the higher-pitched one), so <span class="mRando"></span> can keep it clear of the game's sound effects.</div>
+  </details>
 </fieldset>
 
 <fieldset id="radiobox" hidden>
