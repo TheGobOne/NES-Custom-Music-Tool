@@ -63,7 +63,8 @@
   button.big:hover { transform: translateY(-3px); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 34%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)); }
   button.big:active { transform: translateY(0); box-shadow: none; }
   button.big .note { display: inline-block; margin-top: 6px; padding: 1px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
-  button.big.z1 { --accent: #2f9e44; } button.big.z2 { --accent: #3b6fd4; }
+  button.big.z1 { --accent: #2f9e44; } button.big.z2 { --accent: #3b6fd4; } button.big.both { --accent: #8a4fd0; }
+  .uses .usesrow b { font-size: 12px; margin-right: 4px; }
   #landing p { margin-bottom: 14px; }
   a.bugbanner { display: block; margin: 0 0 20px; padding: 14px 18px; border: 2px solid #d97706; border-radius: 8px; background: #fef3c7; color: #7c2d12; font-size: 22px; font-weight: 700; text-align: center; text-decoration: none; }
   a.bugbanner:hover { background: #fde68a; }
@@ -116,6 +117,7 @@ so the Export buttons can't save anything here. Download "NES Custom Music Tool.
   <p>Which game is the music pack for?</p>
   <button class="big z1" id="pick-z1">Zelda 1<br><span class="note">ZORA</span></button>
   <button class="big z2" id="pick-z2">Zelda 2<br><span class="note">Z2R</span></button>
+  <button class="big both" id="pick-both">Both (BETA)<br><span class="note">ZORA + Z2R</span></button>
   <p class="note" id="landingNote"></p>
 </section>
 
@@ -202,8 +204,12 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <legend>3. Export</legend>
   <button id="export" disabled>Export JSON5</button>
   <button id="exportEach" disabled>Export each game separately</button>
+  <button id="exportZora" disabled hidden>Export master for ZORA</button>
+  <button id="exportZ2r" disabled hidden>Export master for Z2R</button>
   <span class="note" id="exportnote"></span>
-  <div class="hint">Export JSON5 saves everything into one file, one group per game. Export each game separately writes one
+  <div class="hint" id="bothHint" hidden>Both (beta): tag each track for ZORA, Z2R or both. Each export keeps only that game's tags: a track with no tag for the game is left out
+  (in the ZORA export, tracks over ZORA's size limit are written switched off). Load the two masters back together to carry the tags on.</div>
+  <div class="hint" id="normalHint">Export JSON5 saves everything into one file, one group per game. Export each game separately writes one
   file per game into a folder you pick (for example the randomizer's Music folder; files with the same name are replaced),
   or downloads them as a zip in browsers that can't write to a folder.</div>
   <div id="coverageNote" class="hint"></div>
@@ -1192,6 +1198,20 @@ const GAME_MODES = {
         banks: 12,                                    // ROM.FreeRomBanks: banks $10-$1B
         songsPerSeed: 27 },                           // Music.cs numUsageSongs: 1+1+4+4+4+6+1+1+1+1+1+1+1
 };
+// "Both" (beta): one list tagged for both games at once. A tag is "z1:Overworld" / "z2:Overworld";
+// an export for one game keeps only that game's tags (see exportTags).
+GAME_MODES.both = { key: "both", game: "Zelda 1 + Zelda 2", randomizer: "ZORA and Z2R",
+  uses: [...GAME_MODES.z1.uses.map(u => "z1:" + u), ...GAME_MODES.z2.uses.map(u => "z2:" + u)],
+  defaultUses: [], labels: {}, groupPsc: 0, alwaysEnabled: false };
+const BOTH_NAMES = { z1: "ZORA", z2: "Z2R" };
+// A tag's text for lists: plain in one game's mode, "ZORA: Overworld" in Both.
+function useLabel(mode, u) {
+  const m = u.match(/^(z[12]):(.*)$/);
+  if (!m) return mode.labels[u] || u;
+  return `${BOTH_NAMES[m[1]]}: ${GAME_MODES[m[1]].labels[m[2]] || m[2]}`;
+}
+// The tags of one game in a Both list, without the prefix ("z1:Dungeon" -> "Dungeon").
+const exportTags = (uses, game) => uses.filter(u => u.startsWith(game + ":")).map(u => u.slice(3));
 
 // Would these module sizes fit Z2R's music banks? Packs them the way FtRandoLib's
 // ImportEngineModules does in one import: largest first; each fresh bank is filled from its end
@@ -2063,7 +2083,7 @@ function read7z(bytes) {
 
 
 if (typeof module !== "undefined") module.exports = { soundLoop,
-  tightenLoop, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
+  tightenLoop, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
 
 </script>
 <script>
@@ -2123,9 +2143,14 @@ function setMode(key) {
   document.querySelectorAll(".mGame").forEach(e => e.textContent = mode.game);
   document.querySelectorAll(".mRando").forEach(e => e.textContent = mode.randomizer);
   $("landing").hidden = true; $("app").hidden = false;
+  const both = key === "both";
+  $("export").hidden = $("exportEach").hidden = both;
+  $("exportZora").hidden = $("exportZ2r").hidden = $("bothHint").hidden = !both;
+  $("normalHint").hidden = both;
 }
 $("pick-z1").addEventListener("click", () => setMode("z1"));
 $("pick-z2").addEventListener("click", () => setMode("z2"));
+$("pick-both").addEventListener("click", () => setMode("both"));
 $("changeGame").addEventListener("click", () => {
   if (groups.length && !confirm("Change game? This clears the tracks loaded now (export first if you want to keep them).")) return;
   $("clear").click();
@@ -2156,7 +2181,7 @@ function refreshButtons() {
   const any = allTracks().some(t => t.data);
   $("meta").hidden = $("tracks").hidden = $("exportbox").hidden = $("radiobox").hidden = !groups.length;
   fitNames();
-  $("export").disabled = $("exportEach").disabled = $("normalize").disabled = busy > 0 || !any;
+  $("export").disabled = $("exportEach").disabled = $("exportZora").disabled = $("exportZ2r").disabled = $("normalize").disabled = busy > 0 || !any;
   updateRoomCheck();
 }
 
@@ -2433,17 +2458,19 @@ async function openJson5(bytes, fileName, myEpoch, dup = null) {
   const doc = parseJson5(new TextDecoder().decode(bytes));
   const detected = detectMode(doc);
   let notice = "";
-  if (detected && detected !== mode.key) {
+  if (detected && detected !== mode.key && mode.key !== "both") {
     const other = GAME_MODES[detected];
     if (groups.length) throw new Error(`it's a ${other.game} (${other.randomizer}) pack, and ${mode.game} tracks are loaded. Use Change game to switch (that clears what's loaded)`);
     setMode(detected);
     notice = `Switched to ${other.game} mode: ${fileName} is a ${other.game} (${other.randomizer}) pack.`;
   }
+  const packGame = mode.key === "both" ? detected : null;     // which game a pack's tags belong to (null: unclear, both)
   const list = [...((doc && doc.groups) || [])];
   if (doc && Array.isArray(doc.single) && doc.single.length) list.unshift({ title: fileName.replace(/\.\w+$/, ""), items: doc.single });
   if (!list.length || !list.every(g => Array.isArray(g.items))) throw new Error("not in the music-pack format (no groups → items)");
   for (const group of list) {
     const gTitle = group.title || fileName.replace(/\.\w+$/, "");
+    if (dup && mode.key === "both" && packGame && mergeTags(gTitle, group, packGame)) continue;   // tags added to the game already listed
     if (dup && inList(gTitle)) { dup.push(gTitle); continue; }       // already in the list
     const g = newGroup(gTitle, group.author || "", group.streaming_safe ?? false, true);
     for (let i = 0; i < group.items.length; i++) {
@@ -2452,7 +2479,7 @@ async function openJson5(bytes, fileName, myEpoch, dup = null) {
       await tick();
       const it = group.items[i];
       const t = { number: i + 1, name: it.title || `Song ${i + 1}`, enabled: (it.enabled ?? group.enabled) !== false, vol: 100, fromPack: true,   // as ZORA/Z2R read it
-                  uses: normalizeUses(it.uses), psc: it.primary_square_chan ?? group.primary_square_chan ?? 0 };
+                  uses: normalizeUses(it.uses, packGame), psc: it.primary_square_chan ?? group.primary_square_chan ?? 0 };
       try {
         t.data = await moduleData(it.data);
         t.info = ftPlay(t.data, MAX_PREVIEW_FRAMES);
@@ -2640,9 +2667,31 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
     + `which this tool and ${mode.randomizer} don't have, so tracks may fail or miss parts. Use the NES cartridge version's NSF if there is one.`;
 }
 
-function normalizeUses(list) {
+function normalizeUses(list, packGame = null) {
+  if (mode.key === "both") {
+    const games = packGame ? [packGame] : ["z1", "z2"];
+    if (!Array.isArray(list) || !list.length) return packGame === "z1" ? ["z1:Dungeon", "z1:LastDungeon"] : [];
+    return mode.uses.filter(u => games.includes(u.slice(0, 2)) && list.some(x => String(x).toLowerCase() === u.slice(3).toLowerCase()));
+  }
   if (!Array.isArray(list) || !list.length) return mode.defaultUses.slice();
   return mode.uses.filter(u => list.some(x => String(x).toLowerCase() === u.toLowerCase()));
+}
+// Both: a pack of one game loaded for a game that's already listed adds its tags to the matching
+// tracks (matched by name); tracks it has that the list doesn't are added after.
+function mergeTags(title, group, game) {
+  const g = groups.find(x => looseTitle(x.title) === looseTitle(title) && looseTitle(title) !== "");
+  if (!g) return false;
+  for (const it of group.items) {
+    const name = it.title || "";
+    const t = g.tracks.find(x => x.data && sameTrack(x.name, name));
+    if (!t) continue;
+    const mine = normalizeUses(it.uses, game);
+    t.uses = mode.uses.filter(u => t.uses.includes(u) || mine.includes(u));
+    if ((it.enabled ?? group.enabled) !== false) t.enabled = true;
+    fillUses(t); showCount(g);
+  }
+  placeRows(g); updateRoomCheck();
+  return true;
 }
 
 // ZORA places each track inside one music bank; a bigger one cannot be imported. (Zelda 2: no known limit.)
@@ -2753,7 +2802,10 @@ function addRow(g, t) {
 
 // The "Use for" checkboxes of a track (the ones shown now; a hidden use it has is kept).
 function fillUses(t) {
-  t.usesCell.innerHTML = activeUses().map(u => `<label><input type="checkbox" data-use="${u}" ${t.uses.includes(u) ? "checked" : ""}>${mode.labels[u] || u}</label>`).join("");
+  const box = u => `<label><input type="checkbox" data-use="${u}" ${t.uses.includes(u) ? "checked" : ""}>${(u.includes(":") ? GAME_MODES[u.slice(0, 2)].labels[u.slice(3)] || u.slice(3) : mode.labels[u]) || u}</label>`;
+  t.usesCell.innerHTML = mode.key === "both"
+    ? ["z1", "z2"].map(k => `<div class="usesrow"><b>${BOTH_NAMES[k]}</b>${activeUses().filter(u => u.startsWith(k)).map(box).join("")}</div>`).join("")
+    : activeUses().map(box).join("");
   t.usesCell.querySelectorAll("[data-use]").forEach(box => box.addEventListener("change", () => {
     t.uses = t.uses.filter(u => u !== box.dataset.use);
     if (box.checked) t.uses.push(box.dataset.use);
@@ -2807,7 +2859,7 @@ $("search").addEventListener("input", e => {
 // Which uses have at least one ticked track, and which tracks each has.
 function updateCoverage() {
   const tracks = allTracks().filter(t => t.data && t.enabled);
-  const label = u => mode.labels[u] || u;
+  const label = u => useLabel(mode, u);
   const uses = activeUses();
   const by = new Map(uses.map(u => [u, tracks.filter(t => t.uses.includes(u))]));
   const missing = uses.filter(u => !by.get(u).length);
@@ -2849,15 +2901,16 @@ function updateCoverage() {
 function updateRoomCheck() {
   updateCoverage();
   const box = $("roomcheck");
-  if (!mode.songsPerSeed) { box.textContent = ""; return; }
-  const sizes = allTracks().filter(t => t.data && t.enabled && t.uses.length).map(t => t.data.length)
-    .sort((a, b) => b - a).slice(0, mode.songsPerSeed);
+  const cfg = mode.key === "both" ? GAME_MODES.z2 : mode;       // Both: the Z2R-tagged tracks
+  if (!cfg.songsPerSeed) { box.textContent = ""; return; }
+  const sizes = allTracks().filter(t => t.data && t.enabled && (mode.key === "both" ? exportTags(t.uses, "z2") : t.uses).length).map(t => t.data.length)
+    .sort((a, b) => b - a).slice(0, cfg.songsPerSeed);
   if (!sizes.length) { box.textContent = ""; return; }
   const kb = n => (n / 1024).toFixed(1) + " KB";
   const total = sizes.reduce((a, b) => a + b, 0);
-  box.textContent = fitsBanks(sizes, mode.banks, mode.bankRoom)
-    ? `Z2R room check ✓: even the ${sizes.length} largest ticked tracks (${kb(total)}) fit its ${mode.banks} music banks of 8 KB.`
-    : `Z2R room check ⚠: Z2R places up to ${mode.songsPerSeed} songs per seed into ${mode.banks} banks of 8 KB. Your ${sizes.length} largest ticked tracks `
+  box.textContent = fitsBanks(sizes, cfg.banks, cfg.bankRoom)
+    ? `Z2R room check ✓: even the ${sizes.length} largest ticked tracks (${kb(total)}) fit its ${cfg.banks} music banks of 8 KB.`
+    : `Z2R room check ⚠: Z2R places up to ${cfg.songsPerSeed} songs per seed into ${cfg.banks} banks of 8 KB. Your ${sizes.length} largest ticked tracks `
       + `(${kb(total)}, biggest ${kb(sizes[0])}) don't fit, so seeds that pick them fail with "RomFull". Untick some big tracks, `
       + `or lower Max length and re-add their games. Smaller tracks pack better (three 2.7 KB tracks fit one bank).`;
 }
@@ -2915,7 +2968,7 @@ function refreshRadioOptions() {
   radioGamesSummary();
   const sel = $("radioUse"), keep = sel.value, first = sel.options[0];
   sel.innerHTML = ""; sel.append(first);
-  for (const u of (mode ? mode.uses : [])) { const o = document.createElement("option"); o.value = u; o.textContent = mode.labels[u] || u; sel.append(o); }
+  for (const u of (mode ? mode.uses : [])) { const o = document.createElement("option"); o.value = u; o.textContent = useLabel(mode, u); sel.append(o); }
   sel.value = mode && mode.uses.includes(keep) ? keep : "";
 }
 function radioGamesSummary() {
@@ -3111,9 +3164,22 @@ function showRescaleList(tracks, crushed = []) {
 }
 
 // The groups to save, or null (with a note) if a ticked track still has no "Use for".
-function buildExport() {
+function buildExport(game = null) {
+  const both = mode.key === "both";
   const noUses = allTracks().filter(t => t.data && t.enabled && !t.uses.some(u => activeUses().includes(u)));
   if (noUses.length) { $("exportnote").textContent = `Tick at least one "Use for" box for: ${noUses.map(t => t.name).join(", ")}.`; return null; }
+  if (both) {
+    // one game's master: only the tracks tagged for it, with only its tags
+    const gm = GAME_MODES[game];
+    return groups.map(g => ({
+      title: g.title, author: g.author, primary_square_chan: gm.groupPsc, streaming_safe: g.safe,
+      items: g.tracks.filter(t => t.data && exportTags(t.uses, game).length).map(t => {
+        const data = exportData(t);
+        return { enabled: t.enabled && !(gm.bankRoom && data.length > gm.bankRoom), title: t.name.trim() || `Song ${t.number}`,
+          uses: exportTags(t.uses, game), primary_square_chan: t.psc, data: toBase64(data) };
+      }),
+    })).filter(g => g.items.length);
+  }
   return groups.map(g => ({
     title: g.title, author: g.author, primary_square_chan: mode.groupPsc, streaming_safe: g.safe,
     items: g.tracks.filter(t => t.data).map(t => ({ enabled: t.enabled, title: t.name.trim() || `Song ${t.number}`,
@@ -3134,6 +3200,24 @@ $("export").addEventListener("click", () => exportGuard(async () => {
   $("exportnote").textContent = `Saved ${saved}: ${out.length} group(s), ${items.filter(i => i.enabled).length} of ${items.length} tracks on.`
     + (FRAMED ? FRAMED_HINT : "");
 }));
+
+// Both: the master for one game (only the tracks tagged for it).
+function exportMaster(game) {
+  return exportGuard(async () => {
+    const out = buildExport(game);
+    if (!out) return;
+    if (!out.length) { $("exportnote").textContent = `No track is tagged for ${BOTH_NAMES[game]} yet.`; return; }
+    const text = toPlayerJson5(out, game);
+    const name = `${BOTH_NAMES[game]} master.json5`;
+    const saved = await saveFile(text, name);
+    if (!saved) { cancelled(() => download(new Blob([text], { type: "application/json" }), name)); return; }
+    const items = out.flatMap(g => g.items);
+    $("exportnote").textContent = `Saved ${saved}: ${items.length} tracks tagged for ${BOTH_NAMES[game]} in ${out.length} group(s), ${items.filter(i => i.enabled).length} on.`
+      + (FRAMED ? FRAMED_HINT : "");
+  });
+}
+$("exportZora").addEventListener("click", () => exportMaster("z1"));
+$("exportZ2r").addEventListener("click", () => exportMaster("z2"));
 
 // Run an export, showing any failure next to the buttons instead of failing silently.
 async function exportGuard(fn) {
