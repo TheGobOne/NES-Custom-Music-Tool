@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NES Custom Music Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22%3E%3Crect x=%226%22 y=%226%22 width=%22188%22 height=%22188%22 rx=%2238%22 fill=%22%232b2f8f%22/%3E%0A%3Crect x=%2258%22 y=%2230%22 width=%2284%22 height=%2270%22 rx=%227%22 fill=%22%23ff7a59%22/%3E%0A%3Crect x=%2270%22 y=%2236%22 width=%2260%22 height=%224%22 rx=%222%22 fill=%22%230f1b3d%22 opacity=%22.45%22/%3E%3Crect x=%2270%22 y=%2244%22 width=%2260%22 height=%224%22 rx=%222%22 fill=%22%230f1b3d%22 opacity=%22.45%22/%3E%0A%3Crect x=%2268%22 y=%2254%22 width=%2264%22 height=%2238%22 rx=%225%22 fill=%22%23fff6d8%22/%3E%3Cg transform=%22translate(95.8 82) scale(.5)%22 fill=%22%230f1b3d%22%3E%3Cellipse cx=%220%22 cy=%220%22 rx=%2213%22 ry=%229.5%22 transform=%22rotate(-22)%22/%3E%3Crect x=%227.6%22 y=%22-46%22 width=%224.8%22 height=%2243%22/%3E%3Cpath d=%22M7.6 -46 L12.4 -46 C23 -42 31 -34 27 -17 C25 -26 19 -31 12.4 -30 L7.6 -30 Z%22/%3E%3C/g%3E%0A%3Crect x=%2218%22 y=%2296%22 width=%22164%22 height=%2262%22 rx=%2212%22 fill=%22%2322d3b6%22/%3E%3Crect x=%2246%22 y=%2292%22 width=%22108%22 height=%2212%22 rx=%224%22 fill=%22%230f1b3d%22/%3E%0A%3Crect x=%2230%22 y=%22118%22 width=%228%22 height=%228%22 rx=%222%22 fill=%22%23fff6d8%22/%3E%3Crect x=%2244%22 y=%22120%22 width=%2240%22 height=%224%22 rx=%222%22 fill=%22%230f1b3d%22 opacity=%22.5%22/%3E%3Crect x=%2244%22 y=%22128%22 width=%2240%22 height=%224%22 rx=%222%22 fill=%22%230f1b3d%22 opacity=%22.5%22/%3E%0A%3Crect x=%22102%22 y=%22128%22 width=%2284%22 height=%2240%22 rx=%2211%22 fill=%22%230f1b3d%22 stroke=%22%2322d3b6%22 stroke-width=%224%22/%3E%0A%3Crect x=%22116%22 y=%22143%22 width=%2220%22 height=%227%22 rx=%222%22 fill=%22%2322d3b6%22/%3E%3Crect x=%22122.5%22 y=%22136.5%22 width=%227%22 height=%2220%22 rx=%222%22 fill=%22%2322d3b6%22/%3E%0A%3Ccircle cx=%22159%22 cy=%22150%22 r=%226%22 fill=%22%23ffd34d%22/%3E%3Ccircle cx=%22174%22 cy=%22146%22 r=%226%22 fill=%22%23ff6b6b%22/%3E%3C/svg%3E">
 <style>
 .nomatch{display:none !important}
   :root { color-scheme: light dark; --line: #8884; --muted: #888; --band: #8881; }
   body { font: 15px/1.4 system-ui, sans-serif; max-width: 1180px; margin: 24px auto; padding: 0 16px; }
-  h1 { font-size: 20px; margin: 0 0 16px; }
+  h1 { font-size: 20px; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  h1 svg { width: 40px; height: 40px; flex: none; }
   fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 16px; padding: 10px 12px; }
   legend { font-weight: 600; padding: 0 4px; }
   label { margin-right: 14px; white-space: nowrap; }
@@ -95,7 +97,15 @@
 </style>
 </head>
 <body>
-<h1>NES Custom Music Tool</h1>
+<h1><svg role="img" aria-label="" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect x="6" y="6" width="188" height="188" rx="38" fill="#2b2f8f"/>
+<rect x="58" y="30" width="84" height="70" rx="7" fill="#ff7a59"/>
+<rect x="70" y="36" width="60" height="4" rx="2" fill="#0f1b3d" opacity=".45"/><rect x="70" y="44" width="60" height="4" rx="2" fill="#0f1b3d" opacity=".45"/>
+<rect x="68" y="54" width="64" height="38" rx="5" fill="#fff6d8"/><g transform="translate(95.8 82) scale(.5)" fill="#0f1b3d"><ellipse cx="0" cy="0" rx="13" ry="9.5" transform="rotate(-22)"/><rect x="7.6" y="-46" width="4.8" height="43"/><path d="M7.6 -46 L12.4 -46 C23 -42 31 -34 27 -17 C25 -26 19 -31 12.4 -30 L7.6 -30 Z"/></g>
+<rect x="18" y="96" width="164" height="62" rx="12" fill="#22d3b6"/><rect x="46" y="92" width="108" height="12" rx="4" fill="#0f1b3d"/>
+<rect x="30" y="118" width="8" height="8" rx="2" fill="#fff6d8"/><rect x="44" y="120" width="40" height="4" rx="2" fill="#0f1b3d" opacity=".5"/><rect x="44" y="128" width="40" height="4" rx="2" fill="#0f1b3d" opacity=".5"/>
+<rect x="102" y="128" width="84" height="40" rx="11" fill="#0f1b3d" stroke="#22d3b6" stroke-width="4"/>
+<rect x="116" y="143" width="20" height="7" rx="2" fill="#22d3b6"/><rect x="122.5" y="136.5" width="7" height="20" rx="2" fill="#22d3b6"/>
+<circle cx="159" cy="150" r="6" fill="#ffd34d"/><circle cx="174" cy="146" r="6" fill="#ff6b6b"/></svg>NES Custom Music Tool</h1>
 <p class="error" id="framedNote" hidden>This page is open inside a preview window, which may not be allowed to save files,
 so the Export buttons can't save anything here. Download "NES Custom Music Tool.html" and open it in Chrome, Edge or Firefox.</p>
 
