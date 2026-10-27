@@ -1832,7 +1832,7 @@ function midiTimer(p, div) {
 }
 
 // The recording of a MIDI file: the same shape as runSong gives for an NSF song.
-function midiToSong(parts, mapping, maxSec) {
+function midiToSong(parts, mapping, maxSec, opts = {}) {
   const fr = s => Math.round(s * MIDI_FPS), limit = Math.floor(maxSec * MIDI_FPS);
   const by = { pulse1: [], pulse2: [], triangle: [], noise: [] };
   parts.forEach((p, i) => { if (by[mapping[i]]) by[mapping[i]].push(...p.notes); });
@@ -1847,13 +1847,18 @@ function midiToSong(parts, mapping, maxSec) {
         if (!c || (kind === "triangle" ? n.p < c.p : n.p > c.p)) pick[f] = i;
       }
     });
+    if (opts.arp && kind !== "triangle") {            // chords: cycle through up to 3 of the sounding notes, 2 frames each
+      const act = Array.from({ length: frames }, () => []);
+      ns.forEach((n, i) => { for (let f = n.a; f < n.b; f++) act[f].push(i); });
+      for (let f = 0; f < frames; f++) if (act[f].length > 1) { act[f].sort((x, y) => ns[y].p - ns[x].p); pick[f] = act[f][Math.floor(f / 2) % Math.min(3, act[f].length)]; }
+    }
     const notes = [];
     for (let f = 0; f < frames; ) {
       if (pick[f] < 0) { f++; continue; }
       let g = f; while (g < frames && pick[g] === pick[f]) g++;
       const n = ns[pick[f]];
       const note = { start: f, frames: g - f, timer: midiTimer(n.p, kind === "triangle" ? 32 : 16) };
-      if (kind !== "triangle") { note.vol = 1 + Math.round(n.v / 127 * 14); note.duty = kind === "pulse1" ? 2 : 1; }
+      if (kind !== "triangle") { note.vol = 1 + Math.round(n.v / 127 * 14); note.duty = (opts.duty || [2, 1])[kind === "pulse1" ? 0 : 1]; }
       notes.push(note); f = g;
     }
     channels[kind] = notes;
