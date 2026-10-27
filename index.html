@@ -129,7 +129,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
 
 <fieldset>
   <legend>1. Add files</legend>
-  <label class="pick">Add files <input type="file" id="file" accept=".nsf,.nsfe,.mid,.midi,.m3u,.json5,.zip,.7z" multiple></label>
+  <label class="pick">Add files <input type="file" id="file" accept=".nsf,.nsfe,.m3u,.json5,.zip,.7z" multiple></label>
   <label class="pick">Add folder <input type="file" id="folder" webkitdirectory></label>
   <label class="pick" title="Convert games already in the list again from their original files">Re-import files <input type="file" id="reFile" accept=".nsf,.nsfe,.m3u,.json5,.zip,.7z" multiple></label>
   <label class="pick" title="Convert games already in the list again from a folder of original files">Re-import folder <input type="file" id="reFolder" webkitdirectory></label>
@@ -137,7 +137,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <button id="clear">Clear all</button>
   <label>Preview volume <input type="range" id="pvol" min="0" max="100" value="40"> <span id="pvolText">40%</span></label>
   <span class="note">(your speakers only; doesn't change the export)</span>
-  <div id="status">Add NSF / NSFe music files, MIDI files, JSON5 music packs, .zip / .7z archives or whole folders, or drag them onto this page.</div>
+  <div id="status">Add NSF / NSFe music files, JSON5 music packs, .zip / .7z archives or whole folders, or drag them onto this page.</div>
   <details class="helpd"><summary>Show help</summary>
   <div class="hint">Re-import: pick the original NSF / NSFe files (or their zip, 7z or folder) of games already in the list. Their tracks
   are converted fresh, at Vol 100% (normalize again afterwards), and keep which tracks are ticked, their Use for tags, names and Loop.
@@ -1721,172 +1721,12 @@ function keepBass(data, v, lowest) {
   return v < lowest && loudness(data, 100, [false, false, true, false]) > 0.01 ? lowest : v;
 }
 
-// ------------------------------------------------------------------ MIDI files
-// A MIDI file becomes a one-song "recording" (the same notes per channel that an NSF gives), which the
-// normal compiler then turns into a music module. Each MIDI part (a track's channel) is assigned to
-// Pulse 1, Pulse 2, Triangle, Noise or skipped; the NES plays one note at a time, so overlapping notes
-// keep the highest (pulse) or the lowest (triangle).
-
-const MIDI_FPS = 60.0988;
-const MIDI_DRUM_LEVEL = 0.45;                       // drums at 45% of full noise volume: they overpower the tune otherwise
-
-// Parts (one per track and channel): {name, ch, drums, notes: [{s, e, p, v}]} with seconds, plus the length.
-function parseMidi(d) {
-  const dv = new DataView(d.buffer, d.byteOffset, d.byteLength);
-  const tag = o => String.fromCharCode(d[o], d[o + 1], d[o + 2], d[o + 3]);
-  if (d.length < 14 || tag(0) !== "MThd") throw new Error("not a MIDI file");
-  const count = dv.getUint16(10), div = dv.getUint16(12);
-  if (div & 0x8000) throw new Error("MIDI files timed in SMPTE frames aren't supported");
-  let o = 8 + dv.getUint32(4);
-  const tempos = [[0, 500000]], parts = [];
-  for (let k = 0; o + 8 <= d.length && k < count; ) {
-    const len = dv.getUint32(o + 4), end = Math.min(d.length, o + 8 + len);
-    if (tag(o) !== "MTrk") { o = end; continue; }
-    k++;
-    let p = o + 8, tick = 0, status = 0, name = "";
-    const open = new Map(), byCh = new Map();
-    const part = ch => { if (!byCh.has(ch)) { const x = { name, ch, drums: ch === 9, notes: [] }; byCh.set(ch, x); parts.push(x); } return byCh.get(ch); };
-    const vlq = () => { let v = 0, b; do { b = d[p++]; v = v * 128 + (b & 127); } while (b & 128 && p < end); return v; };
-    const stop = (key, t) => { const q = open.get(key); if (q && q.length) { const n = q.shift(); n.t1 = t; } };
-    while (p < end) {
-      tick += vlq();
-      let b = d[p];
-      if (b === 0xFF) {
-        const type = d[p + 1]; p += 2; const l = vlq();
-        if (type === 0x51 && l === 3) tempos.push([tick, d[p] << 16 | d[p + 1] << 8 | d[p + 2]]);
-        else if (type === 0x03) name = String.fromCharCode(...d.subarray(p, p + l)).trim();
-        p += l; continue;
-      }
-      if (b === 0xF0 || b === 0xF7) { p++; p += vlq(); continue; }
-      if (b & 0x80) { status = b; p++; }
-      const hi = status & 0xF0, ch = status & 15;
-      if (hi === 0xC0 || hi === 0xD0) { p++; continue; }
-      const a = d[p++], v = d[p++], key = ch * 128 + a;
-      if (hi === 0x90 && v > 0) {
-        const n = { t0: tick, t1: null, p: a, v };
-        part(ch).notes.push(n);
-        if (!open.has(key)) open.set(key, []);
-        open.get(key).push(n);
-      } else if (hi === 0x80 || hi === 0x90) stop(key, tick);
-    }
-    for (const q of open.values()) for (const n of q) if (n.t1 === null) n.t1 = tick;
-    o = end;
-  }
-  tempos.sort((x, y) => x[0] - y[0]);
-  const secOf = tick => {
-    let s = 0, t = 0, us = 500000;
-    for (const [tt, u] of tempos) { if (tt > tick) break; s += (tt - t) * us / 1e6 / div; t = tt; us = u; }
-    return s + (tick - t) * us / 1e6 / div;
-  };
-  let seconds = 0;
-  const out = parts.filter(x => x.notes.length).map((x, i) => {
-    const notes = x.notes.map(n => ({ s: secOf(n.t0), e: secOf(n.t1), p: n.p, v: n.v }));
-    for (const n of notes) seconds = Math.max(seconds, n.e);
-    return { name: x.name || `Track ${i + 1}`, ch: x.ch, drums: x.drums, notes };
-  });
-  if (!out.length) throw new Error("the MIDI file has no notes");
-  return { parts: out, seconds };
-}
-
-// The mapping, chosen automatically: every drum part goes to Noise; of the rest, the lowest busy part
-// goes to Triangle (bass), and the two that play most steadily as a single line (not chords) go to the
-// pulses, the higher one first. Returns one of pulse1, pulse2, triangle, noise, skip per part.
-function midiAutoMap(parts) {
-  const map = parts.map(p => p.drums ? "noise" : "skip");
-  const total = Math.max(...parts.map(p => Math.max(...p.notes.map(n => n.e))));
-  const stats = parts.map(p => {
-    const iv = p.notes.map(n => [n.s, n.e]).sort((x, y) => x[0] - y[0]);
-    let union = 0, sum = 0, end = -1;
-    for (const [s, e] of iv) { sum += e - s; if (e > end) { union += e - Math.max(s, end); end = e; } }
-    return { avg: p.notes.reduce((s, n) => s + n.p, 0) / p.notes.length,
-             score: (union / total) * (sum > 0 ? union / sum : 1) };   // how much of the song it plays, as a single line
-  });
-  const most = Math.max(...parts.map((p, i) => p.drums ? 0 : p.notes.length));
-  const tunes = parts.map((_, i) => i).filter(i => !parts[i].drums && parts[i].notes.length >= most * 0.1);
-  const best = list => list.sort((a, b) => stats[b].score - stats[a].score)[0];
-  const bass = best(tunes.filter(i => stats[i].avg < 55));
-  if (bass !== undefined) map[bass] = "triangle";
-  const leads = tunes.filter(i => i !== bass && stats[i].avg >= 55);
-  const first = best(leads.slice());
-  if (first !== undefined) map[first] = "pulse1";
-  const second = best(leads.filter(i => i !== first));
-  if (second !== undefined) map[second] = "pulse2";
-  const high = [first, second].filter(i => i !== undefined).sort((a, b) => stats[b].avg - stats[a].avg);
-  high.forEach((i, k) => map[i] = k ? "pulse2" : "pulse1");
-  return map;
-}
-
-// [priority, noise rate (0 = hiss, 15 = rumble), volume, frames] for General MIDI drum notes
-const MIDI_DRUMS = (() => {
-  const t = {}, set = (notes, v) => notes.forEach(n => t[n] = v);
-  set([35, 36], [0, 13, 15, 6]); set([37, 38, 39, 40], [1, 7, 13, 8]); set([41, 43, 45, 47, 48, 50], [2, 10, 13, 8]);
-  set([42, 44], [4, 3, 8, 3]); set([46], [4, 3, 8, 10]); set([49, 51, 52, 53, 55, 57, 59], [3, 4, 10, 18]);
-  return t;
-})();
-
-function midiTimer(p, div) {
-  const t = p => Math.round(CPU_HZ / (div * 440 * Math.pow(2, (p - 69) / 12))) - 1;
-  const lo = div === 16 ? 8 : 2;
-  while (t(p) > 0x7FF) p += 12;
-  while (t(p) < lo) p -= 12;
-  return t(p);
-}
-
-// The recording of a MIDI file: the same shape as runSong gives for an NSF song.
-function midiToSong(parts, mapping, maxSec, opts = {}) {
-  const fr = s => Math.round(s * MIDI_FPS), limit = Math.floor(maxSec * MIDI_FPS);
-  const by = { pulse1: [], pulse2: [], triangle: [], noise: [] };
-  parts.forEach((p, i) => { if (by[mapping[i]]) by[mapping[i]].push(...p.notes); });
-  const frames = Math.min(limit, Object.values(by).flat().reduce((x, n) => Math.max(x, fr(n.e)), 0));
-  const channels = {};
-  for (const kind of ["pulse1", "pulse2", "triangle"]) {
-    const ns = by[kind].map(n => ({ a: fr(n.s), b: Math.min(frames, Math.max(fr(n.s) + 1, fr(n.e))), p: n.p, v: n.v }));
-    const pick = new Array(frames).fill(-1);
-    ns.forEach((n, i) => {
-      for (let f = n.a; f < n.b; f++) {
-        const c = pick[f] < 0 ? null : ns[pick[f]];
-        if (!c || (kind === "triangle" ? n.p < c.p : n.p > c.p)) pick[f] = i;
-      }
-    });
-    if (opts.arp && kind !== "triangle") {            // chords: cycle through up to 3 of the sounding notes, 2 frames each
-      const act = Array.from({ length: frames }, () => []);
-      ns.forEach((n, i) => { for (let f = n.a; f < n.b; f++) act[f].push(i); });
-      for (let f = 0; f < frames; f++) if (act[f].length > 1) { act[f].sort((x, y) => ns[y].p - ns[x].p); pick[f] = act[f][Math.floor(f / 2) % Math.min(3, act[f].length)]; }
-    }
-    const notes = [];
-    for (let f = 0; f < frames; ) {
-      if (pick[f] < 0) { f++; continue; }
-      let g = f; while (g < frames && pick[g] === pick[f]) g++;
-      const n = ns[pick[f]];
-      const note = { start: f, frames: g - f, timer: midiTimer(n.p, kind === "triangle" ? 32 : 16) };
-      if (kind !== "triangle") { note.vol = 1 + Math.round(n.v / 127 * 14); note.duty = (opts.duty || [2, 1])[kind === "pulse1" ? 0 : 1]; }
-      notes.push(note); f = g;
-    }
-    channels[kind] = notes;
-  }
-  const hits = by.noise.map(n => ({ a: fr(n.s), d: MIDI_DRUMS[n.p] || [5, 8, 8, 4], v: n.v })).filter(h => h.a < frames)
-    .sort((x, y) => x.a - y.a || x.d[0] - y.d[0]).filter((h, i, all) => !i || h.a !== all[i - 1].a);
-  channels.noise = hits.map((h, i) => {
-    const [, rate, vol, dur] = h.d, len = Math.min(dur, (hits[i + 1] ? hits[i + 1].a : frames) - h.a, frames - h.a);
-    const top = Math.max(1, Math.round(vol * MIDI_DRUM_LEVEL * (0.5 + 0.5 * h.v / 127)));
-    return { start: h.a, frames: len, rate, mode: 0, vol: Array.from({ length: len }, (_, k) => Math.max(1, Math.round(top * (1 - k / dur)))) };
-  }).filter(n => n.frames > 0);
-  return { number: 1, frames, end: "loop", loopStart: 0, channels, dpcmUsed: false };
-}
-
 // ------------------------------------------------------------------ background work
 
 // The slow steps, run in Web Workers (this same file, loaded as a worker) so the page stays smooth.
 function convertTrack(bytes, track, maxSec, previewFrames) {
   const nsf = loadFile(bytes).nsf;
-  return finishSong(runSong(nsf, track, maxSec), previewFrames);
-}
-function convertMidi(bytes, mapping, maxSec, previewFrames) {
-  const song = midiToSong(parseMidi(bytes).parts, mapping, maxSec);
-  if (!song.frames) throw new Error("no notes on the channels chosen");
-  return finishSong(song, previewFrames);
-}
-function finishSong(song, previewFrames) {
+  const song = runSong(nsf, track, maxSec);
   const psc = guessMelody(songStates(song).states);
   const c = compileSong(song);
   let frames = song.frames, loopStart = song.loopStart ?? null;
@@ -1901,7 +1741,7 @@ function leadToBass(data) {
   return bass > 0.01 ? loudness(data, 100, [true, true, false, true]) / bass : null;
 }
 const WORKER_FNS = {
-  convertTrack, convertMidi, loudness, peakVolume, leadToBass,
+  convertTrack, loudness, peakVolume, leadToBass,
   volumeFor: (data, target, entries, lowest) => { const cache = new Map(entries); const v = volumeFor(data, target, cache, lowest); return [v, [...cache]]; },
 };
 if (typeof WorkerGlobalScope !== "undefined" && typeof self !== "undefined" && self instanceof WorkerGlobalScope) {
@@ -2246,7 +2086,7 @@ function read7z(bytes) {
 
 
 if (typeof module !== "undefined") module.exports = { soundLoop,
-  tightenLoop, leadToBass, convertTrack, convertMidi, parseMidi, midiAutoMap, midiToSong, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
+  tightenLoop, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
 
 </script>
 <script>
@@ -2374,7 +2214,7 @@ function removeGroup(g) {
 }
 
 // ---- adding files: picked files, a picked folder, or anything dropped on the page --------------
-const RELEVANT = /\.(nsf|nsfe|midi?|m3u8?|json5?)$/i;
+const RELEVANT = /\.(nsf|nsfe|m3u8?|json5?)$/i;
 
 // Expand picked/dropped files into [{name, path, data}] music entries (archives unpacked, other files
 // skipped). An archive that can't be read is reported in `problems` and the rest still load.
@@ -2407,7 +2247,7 @@ async function addFiles(files, reimport = false, into = null) {
     busy--; refreshButtons();
     const rom = files.some(f => /\.nes$/i.test(f.name));
     setStatus(rom ? "Game ROMs (.nes) can't be read. Use the game's NSF or NSFe music file instead."
-                  : "No NSF, NSFe, MIDI, M3U or JSON5 files found in what was added.", true);
+                  : "No NSF, NSFe, M3U or JSON5 files found in what was added.", true);
     return;
   }
   // .m3u playlists: track names and order for the .nsf files they name
@@ -2426,12 +2266,6 @@ async function addFiles(files, reimport = false, into = null) {
   for (const file of entries) {
     if (myEpoch !== epoch) break;
     if (/\.m3u8?$/i.test(file.name)) continue;
-    if (/\.midi?$/i.test(file.name)) {                 // MIDI files wait for the person to pick channels
-      if (re) continue;
-      try { const m = parseMidi(file.data); midiQueue.push({ name: file.name, data: file.data, parts: m.parts, seconds: m.seconds, map: midiAutoMap(m.parts) }); }
-      catch (err) { problems.push(`${file.name}: ${err.message}.`); }
-      continue;
-    }
     if (/\.nsf$/i.test(file.name) && nsfeStems.has(stem(file.name))) continue;   // its .nsfe has the names
     try {
       if (/\.json5?$/i.test(file.name)) {
@@ -2446,7 +2280,6 @@ async function addFiles(files, reimport = false, into = null) {
       }
     } catch (err) { problems.push(`${file.name}: ${err.message}.`); }
   }
-  if (midiQueue.length) { const q = midiQueue; midiQueue = []; problems.push(...await addMidi(q, myEpoch)); notices.push(`Added ${q.length} MIDI file(s) to "MIDI songs".`); }
   const unusedM3u = [...playlists.keys()].filter(k => !used.has(k) && !nsfeStems.has(stem(k)));
   if (unusedM3u.length) problems.push(`Playlist for ${unusedM3u.join(", ")} was added without that .nsf file.`);
   if (myEpoch !== epoch) return;
@@ -2736,37 +2569,6 @@ function shortName(name, game) {
   if (parts.length >= 2 && game && looseTitle(parts[0]) === looseTitle(game)) return parts.slice(1).join(" - ");
   return name;
 }
-
-// ---- MIDI files: channels are assigned automatically (midiAutoMap); each file becomes a track of one game
-let midiQueue = [];
-async function addMidi(files, myEpoch) {
-  const title = "MIDI songs";
-  const maxSec = Math.max(10, +$("maxsec").value || 300);
-  const g = groups.find(x => x.title === title) || newGroup(title, "", false);
-  g.source = g.source || "MIDI files"; g.warnCell.hidden = true;
-  const problems = [];
-  for (const f of files) {
-    if (myEpoch !== epoch) return [];
-    setStatus(`Converting ${f.name}…`);
-    const t = { number: g.tracks.length + 1, name: f.name.replace(/\.\w+$/, ""), enabled: true, vol: 100, uses: [], psc: 0 };
-    try {
-      const song = await run("convertMidi", f.data, f.map, maxSec, MAX_PREVIEW_FRAMES);
-      if (myEpoch !== epoch) return [];
-      t.psc = song.psc; t.data = song.data;
-      t.info = { frames: song.frames, loopStart: song.loopStart };
-      t.endCmd = song.endCmd; t.loop = t.info.loopStart !== null;
-      const notes = [];
-      if (song.approximated) notes.push(`${song.approximated} note(s) use a close-match volume`);
-      if (song.frames / FRAME_RATE < AUTO_ON_SECONDS) { notes.push(`under ${AUTO_ON_SECONDS} s: check, then tick if wanted`); t.enabled = false; }
-      t.notes = notes.join("; ");
-      sizeCheck(t);
-    } catch (err) { t.data = null; t.enabled = false; t.notes = `could not convert: ${err.message}`; problems.push(`${f.name}: ${err.message}.`); }
-    g.tracks.push(t); addRow(g, t); showLevel(t);
-  }
-  renderGameList();
-  return problems;
-}
-
 
 async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
   const loaded = loadFile(bytes);
