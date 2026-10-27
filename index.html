@@ -64,6 +64,8 @@
   button.big:active { transform: translateY(0); box-shadow: none; }
   button.big .note { display: inline-block; margin-top: 6px; padding: 1px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
   button.big.z1 { --accent: #2f9e44; } button.big.z2 { --accent: #3b6fd4; } button.big.both { --accent: #8a4fd0; }
+  .uses .usesrow { padding: 3px 6px; border-left: 4px solid var(--rc); background: color-mix(in srgb, var(--rc) 10%, transparent); }
+  .uses .usesrow + .usesrow { margin-top: 4px; } .uses .usesrow.z1 { --rc: #2f9e44; } .uses .usesrow.z2 { --rc: #3b6fd4; }
   .uses .usesrow b { font-size: 12px; margin-right: 4px; }
   #landing p { margin-bottom: 14px; }
   a.bugbanner { display: block; margin: 0 0 20px; padding: 14px 18px; border: 2px solid #d97706; border-radius: 8px; background: #fef3c7; color: #7c2d12; font-size: 22px; font-weight: 700; text-align: center; text-decoration: none; }
@@ -2392,7 +2394,7 @@ function newGroup(title, author, safe, collapsed = false) {
   const head = cls => { const r = document.createElement("tr"); r.className = "sub " + cls; r.innerHTML = `<td colspan="11"></td>`; g.body.appendChild(r); return r; };
   g.onHead = head("onHead"); g.offHead = head("offHead");
   g.offHead.firstChild.innerHTML = `<button class="offToggle" title="Show or hide the unticked tracks"></button> <span></span>`;
-  g.offCollapsed = false;
+  g.offCollapsed = true;
   g.offHead.querySelector(".offToggle").addEventListener("click", () => {
     g.offCollapsed = !g.offCollapsed;
     if (g.offCollapsed && playing && g.tracks.includes(playing) && !(playing.data && playing.enabled)) stop();
@@ -2804,7 +2806,7 @@ function addRow(g, t) {
 function fillUses(t) {
   const box = u => `<label><input type="checkbox" data-use="${u}" ${t.uses.includes(u) ? "checked" : ""}>${(u.includes(":") ? GAME_MODES[u.slice(0, 2)].labels[u.slice(3)] || u.slice(3) : mode.labels[u]) || u}</label>`;
   t.usesCell.innerHTML = mode.key === "both"
-    ? ["z1", "z2"].map(k => `<div class="usesrow"><b>${BOTH_NAMES[k]}</b>${activeUses().filter(u => u.startsWith(k)).map(box).join("")}</div>`).join("")
+    ? ["z1", "z2"].map(k => `<div class="usesrow ${k}"><b>${BOTH_NAMES[k]}</b>${activeUses().filter(u => u.startsWith(k)).map(box).join("")}</div>`).join("")
     : activeUses().map(box).join("");
   t.usesCell.querySelectorAll("[data-use]").forEach(box => box.addEventListener("change", () => {
     t.uses = t.uses.filter(u => u !== box.dataset.use);
