@@ -2688,10 +2688,10 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
 function normalizeUses(list, packGame = null) {
   if (mode.key === "both") {
     const games = packGame ? [packGame] : ["z1", "z2"];
-    if (!Array.isArray(list) || !list.length) return packGame === "z1" ? ["z1:Dungeon", "z1:LastDungeon"] : [];
+    if (!Array.isArray(list) || !list.length) return [];
     return mode.uses.filter(u => games.includes(u.slice(0, 2)) && list.some(x => String(x).toLowerCase() === u.slice(3).toLowerCase()));
   }
-  if (!Array.isArray(list) || !list.length) return mode.defaultUses.slice();
+  if (!Array.isArray(list) || !list.length) return [];       // untagged stays untagged
   return mode.uses.filter(u => list.some(x => String(x).toLowerCase() === u.toLowerCase()));
 }
 // Both: a pack of one game loaded for a game that's already listed adds its tags to the matching
