@@ -2342,6 +2342,8 @@ function newGroup(title, author, safe, collapsed = false) {
     <div class="gcol">
       <div><label><input type="checkbox" class="gs"> Safe for Streaming</label> <span class="gwarn" hidden title="This game was converted from a plain .nsf with no .m3u playlist, so its tracks are named Song 1, Song 2… and every track in the file is listed (sound effects too). Add the .m3u with the NSF (Re-import this game), or use Import playlist.">⚠ no playlist: track names are generic</span> <span class="gcount note"></span> <span class="gsum note"></span></div>
       <div class="gbtns">
+        <button class="tickAll" title="Tick every track of this game (tracks too big for the game stay off)">Tick all</button>
+        <button class="untickAll" title="Untick every track of this game">Untick all</button>
         <label class="pick regame" title="Convert this game again from its original NSF / NSFe file, keeping ticks and tags">⟳ Re-import this game
           <input type="file" accept=".nsf,.nsfe,.m3u,.json5,.zip,.7z" multiple></label>
         <label class="pick regame importM3u" title="Use track names from an .m3u playlist for this game's tracks (matched by track number)">Import playlist (.m3u)
@@ -2360,6 +2362,16 @@ function newGroup(title, author, safe, collapsed = false) {
   g.toggle = tr.querySelector(".toggle");
   g.toggle.addEventListener("click", () => setCollapsed(g, !g.collapsed));
   tr.querySelector(".remove").addEventListener("click", () => removeGroup(g));
+  const tickAll = on => {
+    for (const t of g.tracks) {
+      const box = t.row && t.row.querySelector(".on");
+      if (!box || !t.data || box.checked === on || (on && /too big/.test(t.notes || ""))) continue;
+      box.checked = on; box.dispatchEvent(new Event("change"));
+    }
+    updateRoomCheck();
+  };
+  tr.querySelector(".tickAll").addEventListener("click", () => tickAll(true));
+  tr.querySelector(".untickAll").addEventListener("click", () => tickAll(false));
   tr.querySelector(".importM3u input").addEventListener("change", async e => {
     const file = e.target.files[0]; e.target.value = "";
     if (!file) return;
