@@ -147,14 +147,6 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   </details>
 </fieldset>
 
-<fieldset id="midiBox" hidden>
-  <legend>MIDI files: choose the NES channel for each part</legend>
-  <div class="note">The NES plays one note at a time per channel: where notes overlap, Pulse keeps the highest and Triangle the lowest. Drums (General MIDI) go to Noise.</div>
-  <div id="midiList"></div>
-  <label>Add to game <input type="text" id="midiGame" value="MIDI songs"></label>
-  <button id="midiAdd">Add to list</button> <button id="midiCancel">Cancel</button>
-</fieldset>
-
 <fieldset id="meta" hidden>
   <legend>2. Check tracks</legend>
   <button id="normalize">Normalize volumes</button>
@@ -1795,21 +1787,31 @@ function parseMidi(d) {
   return { parts: out, seconds };
 }
 
-// A first guess at the mapping: the three busiest tunes get triangle (lowest), pulse 1 (highest) and
-// pulse 2; the busiest drum part gets noise. Returns one of pulse1, pulse2, triangle, noise, skip per part.
+// The mapping, chosen automatically: every drum part goes to Noise; of the rest, the lowest busy part
+// goes to Triangle (bass), and the two that play most steadily as a single line (not chords) go to the
+// pulses, the higher one first. Returns one of pulse1, pulse2, triangle, noise, skip per part.
 function midiAutoMap(parts) {
-  const map = parts.map(() => "skip");
-  const avg = i => parts[i].notes.reduce((s, n) => s + n.p, 0) / parts[i].notes.length;
-  const busy = (a, b) => parts[b].notes.length - parts[a].notes.length;
-  const tunes = parts.map((_, i) => i).filter(i => !parts[i].drums).sort(busy).slice(0, 3).sort((a, b) => avg(a) - avg(b));
-  if (tunes.length === 1) map[tunes[0]] = "pulse1";
-  else if (tunes.length > 1) {
-    map[tunes[0]] = "triangle";
-    const up = tunes.slice(1).reverse();
-    map[up[0]] = "pulse1"; if (up[1] !== undefined) map[up[1]] = "pulse2";
-  }
-  const drum = parts.map((_, i) => i).filter(i => parts[i].drums).sort(busy)[0];
-  if (drum !== undefined) map[drum] = "noise";
+  const map = parts.map(p => p.drums ? "noise" : "skip");
+  const total = Math.max(...parts.map(p => Math.max(...p.notes.map(n => n.e))));
+  const stats = parts.map(p => {
+    const iv = p.notes.map(n => [n.s, n.e]).sort((x, y) => x[0] - y[0]);
+    let union = 0, sum = 0, end = -1;
+    for (const [s, e] of iv) { sum += e - s; if (e > end) { union += e - Math.max(s, end); end = e; } }
+    return { avg: p.notes.reduce((s, n) => s + n.p, 0) / p.notes.length,
+             score: (union / total) * (sum > 0 ? union / sum : 1) };   // how much of the song it plays, as a single line
+  });
+  const most = Math.max(...parts.map((p, i) => p.drums ? 0 : p.notes.length));
+  const tunes = parts.map((_, i) => i).filter(i => !parts[i].drums && parts[i].notes.length >= most * 0.1);
+  const best = list => list.sort((a, b) => stats[b].score - stats[a].score)[0];
+  const bass = best(tunes.filter(i => stats[i].avg < 55));
+  if (bass !== undefined) map[bass] = "triangle";
+  const leads = tunes.filter(i => i !== bass && stats[i].avg >= 55);
+  const first = best(leads.slice());
+  if (first !== undefined) map[first] = "pulse1";
+  const second = best(leads.filter(i => i !== first));
+  if (second !== undefined) map[second] = "pulse2";
+  const high = [first, second].filter(i => i !== undefined).sort((a, b) => stats[b].avg - stats[a].avg);
+  high.forEach((i, k) => map[i] = k ? "pulse2" : "pulse1");
   return map;
 }
 
@@ -2438,7 +2440,7 @@ async function addFiles(files, reimport = false, into = null) {
       }
     } catch (err) { problems.push(`${file.name}: ${err.message}.`); }
   }
-  if (midiQueue.length) { showMidiBox(); notices.push(`Choose a channel for each part of ${midiQueue.length} MIDI file(s) below, then Add to list.`); }
+  if (midiQueue.length) { const q = midiQueue; midiQueue = []; problems.push(...await addMidi(q, myEpoch)); notices.push(`Added ${q.length} MIDI file(s) to "MIDI songs".`); }
   const unusedM3u = [...playlists.keys()].filter(k => !used.has(k) && !nsfeStems.has(stem(k)));
   if (unusedM3u.length) problems.push(`Playlist for ${unusedM3u.join(", ")} was added without that .nsf file.`);
   if (myEpoch !== epoch) return;
@@ -2729,43 +2731,21 @@ function shortName(name, game) {
   return name;
 }
 
-// ---- MIDI files: the person assigns each part to a channel, then the files become tracks of one game
+// ---- MIDI files: channels are assigned automatically (midiAutoMap); each file becomes a track of one game
 let midiQueue = [];
-const MIDI_CHANNELS = [["pulse1", "Pulse 1"], ["pulse2", "Pulse 2"], ["triangle", "Triangle"], ["noise", "Noise"], ["skip", "Skip"]];
-function showMidiBox() {
-  const list = $("midiList"); list.textContent = "";
-  for (const f of midiQueue) {
-    const d = document.createElement("details"); d.open = true;
-    const s = document.createElement("summary"); s.textContent = `${f.name} (${Math.round(f.seconds)} s)`; d.append(s);
-    f.parts.forEach((p, i) => {
-      const row = document.createElement("div");
-      const sel = document.createElement("select");
-      for (const [v, label] of MIDI_CHANNELS) sel.add(new Option(label, v));
-      sel.value = f.map[i]; sel.addEventListener("change", () => { f.map[i] = sel.value; });
-      row.append(sel, ` ${p.name} (channel ${p.ch + 1}${p.drums ? ", drums" : ""}, ${p.notes.length} notes)`);
-      d.append(row);
-    });
-    list.append(d);
-  }
-  $("midiBox").hidden = !midiQueue.length;
-}
-$("midiCancel").addEventListener("click", () => { midiQueue = []; showMidiBox(); setStatus("MIDI files not added."); });
-$("midiAdd").addEventListener("click", async () => {
-  const files = midiQueue, myEpoch = epoch;
-  midiQueue = []; showMidiBox();
-  const title = $("midiGame").value.trim() || "MIDI songs";
+async function addMidi(files, myEpoch) {
+  const title = "MIDI songs";
   const maxSec = Math.max(10, +$("maxsec").value || 300);
-  busy++; refreshButtons();
   const g = groups.find(x => x.title === title) || newGroup(title, "", false);
   g.source = g.source || "MIDI files"; g.warnCell.hidden = true;
   const problems = [];
   for (const f of files) {
-    if (myEpoch !== epoch) return;
+    if (myEpoch !== epoch) return [];
     setStatus(`Converting ${f.name}…`);
     const t = { number: g.tracks.length + 1, name: f.name.replace(/\.\w+$/, ""), enabled: true, vol: 100, uses: [], psc: 0 };
     try {
       const song = await run("convertMidi", f.data, f.map, maxSec, MAX_PREVIEW_FRAMES);
-      if (myEpoch !== epoch) return;
+      if (myEpoch !== epoch) return [];
       t.psc = song.psc; t.data = song.data;
       t.info = { frames: song.frames, loopStart: song.loopStart };
       t.endCmd = song.endCmd; t.loop = t.info.loopStart !== null;
@@ -2777,9 +2757,10 @@ $("midiAdd").addEventListener("click", async () => {
     } catch (err) { t.data = null; t.enabled = false; t.notes = `could not convert: ${err.message}`; problems.push(`${f.name}: ${err.message}.`); }
     g.tracks.push(t); addRow(g, t); showLevel(t);
   }
-  busy--; refreshButtons(); renderGameList();
-  setStatus(problems.length ? problems.join("  ") : `Added ${files.length} MIDI file(s) to ${title}. Play them, normalize, adjust, then export.`, problems.length > 0);
-});
+  renderGameList();
+  return problems;
+}
+
 
 async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
   const loaded = loadFile(bytes);
