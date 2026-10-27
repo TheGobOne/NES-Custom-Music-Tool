@@ -208,6 +208,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <button id="exportEach" disabled>Export each game separately</button>
   <button id="exportZora" disabled hidden>Export master for ZORA</button>
   <button id="exportZ2r" disabled hidden>Export master for Z2R</button>
+  <button id="exportCombined" disabled hidden title="One file with every track and every tag; likely not accepted by either game">Export combined ⚠</button>
   <span class="note" id="exportnote"></span>
   <div class="hint" id="bothHint" hidden>Both (beta): tag each track for ZORA, Z2R or both. Each export keeps only that game's tags: a track with no tag for the game is left out
   (in the ZORA export, tracks over ZORA's size limit are written switched off). Load the two masters back together to carry the tags on.</div>
@@ -2147,7 +2148,7 @@ function setMode(key) {
   $("landing").hidden = true; $("app").hidden = false;
   const both = key === "both";
   $("export").hidden = $("exportEach").hidden = both;
-  $("exportZora").hidden = $("exportZ2r").hidden = $("bothHint").hidden = !both;
+  $("exportZora").hidden = $("exportZ2r").hidden = $("exportCombined").hidden = $("bothHint").hidden = !both;
   $("normalHint").hidden = both;
 }
 $("pick-z1").addEventListener("click", () => setMode("z1"));
@@ -2183,7 +2184,7 @@ function refreshButtons() {
   const any = allTracks().some(t => t.data);
   $("meta").hidden = $("tracks").hidden = $("exportbox").hidden = $("radiobox").hidden = !groups.length;
   fitNames();
-  $("export").disabled = $("exportEach").disabled = $("exportZora").disabled = $("exportZ2r").disabled = $("normalize").disabled = busy > 0 || !any;
+  $("export").disabled = $("exportEach").disabled = $("exportZora").disabled = $("exportZ2r").disabled = $("exportCombined").disabled = $("normalize").disabled = busy > 0 || !any;
   updateRoomCheck();
 }
 
@@ -3218,6 +3219,23 @@ function exportMaster(game) {
       + (FRAMED ? FRAMED_HINT : "");
   });
 }
+// One file with every track and the tags of both games together. Neither game is likely to accept it
+// (each has uses the other doesn't know, and Overworld / Title would merge), so it asks first.
+$("exportCombined").addEventListener("click", () => exportGuard(async () => {
+  if (!confirm("Warning: a combined file will most likely NOT work for either ZORA or Z2R (each game has tags the other doesn't know, and the same tag names are merged). Use the two masters for real games. Export the combined file anyway?")) { $("exportnote").textContent = ""; return; }
+  const noUses = allTracks().filter(t => t.data && t.enabled && !t.uses.length);
+  if (noUses.length) { $("exportnote").textContent = `Tick at least one "Use for" box for: ${noUses.map(t => t.name).join(", ")}.`; return; }
+  const out = groups.map(g => ({
+    title: g.title, author: g.author, primary_square_chan: 0, streaming_safe: g.safe,
+    items: g.tracks.filter(t => t.data).map(t => ({ enabled: t.enabled, title: t.name.trim() || `Song ${t.number}`,
+      uses: [...new Set(t.uses.map(u => u.slice(3)))], primary_square_chan: t.psc, data: toBase64(exportData(t)) })),
+  })).filter(g => g.items.length);
+  const text = toPlayerJson5(out, "z2");
+  const name = "combined master (may not work).json5";
+  const saved = await saveFile(text, name);
+  if (!saved) { cancelled(() => download(new Blob([text], { type: "application/json" }), name)); return; }
+  $("exportnote").textContent = `Saved ${saved}: ${out.flatMap(g => g.items).length} tracks. ⚠ This combined file will likely not work for either game.` + (FRAMED ? FRAMED_HINT : "");
+}));
 $("exportZora").addEventListener("click", () => exportMaster("z1"));
 $("exportZ2r").addEventListener("click", () => exportMaster("z2"));
 
