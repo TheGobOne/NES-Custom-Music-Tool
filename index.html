@@ -2618,7 +2618,7 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
     const i = order[k];
     if (myEpoch !== epoch) return;
     setStatus(`${fileName}: converting track ${k + 1} of ${order.length}…`);
-    const t = { number: i, name: names.get(i) || `Song ${i}`, enabled: true, vol: 100, uses: mode.defaultUses.slice(), psc: 0 };
+    const t = { number: i, name: names.get(i) || `Song ${i}`, enabled: true, vol: 100, uses: [], psc: 0 };
     try {
       const song = await pending[k];
       if (myEpoch !== epoch) return;
