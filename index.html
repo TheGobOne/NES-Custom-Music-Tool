@@ -712,6 +712,17 @@ function soundLoop(sig, n, known, noteSig, toneSig) {
       };
       best = attempt(noteSig || sig, 300);
       if (toneSig) best = Math.min(best, attempt(toneSig, 90));
+      // The same tempo wobble that made the repeat inexact also stops the exact walk back below from finding where it
+      // began: one frame out of step and it gives up, leaving minutes of the same music before the loop. Walk back
+      // again by 5-second windows, as long as 85% of each one repeats (stray bursts of mismatches are forgiven).
+      const ns = noteSig || sig, pe = (x, y) => ns[x] === ns[y] || ns[x] === ns[y - 1] || ns[x] === ns[y + 1];
+      const W = 300, good = new Uint8Array(s + 1);
+      for (let x = 0; x < s; x++) good[x] = pe(x, x + best) ? 1 : 0;
+      let ok = 0; for (let x = Math.max(0, s - W); x < s; x++) ok += good[x];
+      let w = s - W;                                   // the window [w, w + W)
+      while (w > 0 && ok >= 0.85 * W) { w--; ok += good[w] - good[w + W]; }
+      if (ok >= 0.85 * W) w = 0;
+      if (w < s - W) s = Math.max(0, w + W);
     }
     while (s > 0 && at(s - 1) === at(s - 1 + best)) s--;
     return { start: s, period: best };
@@ -2210,7 +2221,7 @@ function removeGroup(g) {
   g.body.remove();
   groups = groups.filter(x => x !== g);
   $("exportnote").textContent = "";
-  setStatus(`Removed ${name}.`); refreshButtons(); renderGameList();
+  setStatus(`Removed ${name}.`); refreshButtons(); renderGameList(); refreshRescale();
 }
 
 // ---- adding files: picked files, a picked folder, or anything dropped on the page --------------
@@ -2353,7 +2364,7 @@ function newGroup(title, author, safe, collapsed = false) {
       </div>
     </div></div></td>`;
   tr.querySelector(".gt").value = title; tr.querySelector(".gs").checked = safe;
-  tr.querySelector(".gt").addEventListener("input", e => { g.title = e.target.value; renderGameList(); });
+  tr.querySelector(".gt").addEventListener("input", e => { g.title = e.target.value; renderGameList(); refreshRescale(); });
   tr.querySelector(".gt").addEventListener("change", () => { sortGroups(); renderGameList(); updateCoverage(); });
   tr.querySelector(".gs").addEventListener("change", e => g.safe = e.target.checked);
   g.warnCell = tr.querySelector(".gwarn");
@@ -3157,7 +3168,14 @@ async function normalizeAll(rescalePack) {
 }
 
 // Red, collapsible: pack tracks that are louder than the target and were left alone, by game.
+let lastRescale = null;
+// The list is a snapshot, so it is redrawn when a game is renamed or removed: no stale names, no games that are gone.
+function refreshRescale() {
+  if (!lastRescale || $("rescaleList").hidden) return;
+  showRescaleList(lastRescale.tracks.filter(t => groups.includes(t.group)), lastRescale.crushed);
+}
 function showRescaleList(tracks, crushed = []) {
+  lastRescale = { tracks, crushed };
   tracks = tracks.filter(t => t.enabled);          // only ticked tracks matter (unticked ones are skipped too)
   const box = $("rescaleList");
   box.hidden = !tracks.length;
