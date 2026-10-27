@@ -168,6 +168,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <label title="How far from the target a track may be and still count as within range (Normalize leaves those alone)">Safety range ± <input type="number" id="safety" value="10" min="1" max="50" step="1"> %</label>
   <div id="normNote" class="normnote" hidden></div>
   <details id="rescaleList" class="rescale" hidden><summary></summary><div class="rescaleBody"></div>
+    <label class="pick" title="Pick the folder with the original NSF / NSFe files (and their .m3u playlists). Only the games on this list are re-imported; their ticks and tags are kept.">Re-import these games from a folder <input type="file" id="rescaleFolder" webkitdirectory></label>
     <button id="rescaleAnyway">Rescale them anyway</button></details>
   <details class="helpd"><summary>Show help</summary>
   <div class="hint">Normalize measures how loud each track plays and sets its Vol % so it reaches the target level: a fixed loudness,
@@ -2253,11 +2254,11 @@ async function collect(files, problems) {
   return out.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
 }
 
-async function addFiles(files, reimport = false, into = null) {
+async function addFiles(files, reimport = false, into = null, only = null) {
   const myEpoch = epoch;
   // re-import: the games in the list now, whose settings carry over to the fresh conversions
   // (into: a game picked with its own Re-import button, which the first music file replaces)
-  const re = reimport ? { old: groups.slice(), done: [], added: [], into } : null;
+  const re = reimport ? { old: only ? only.slice() : groups.slice(), done: [], added: [], into, quiet: !!only } : null;   // only: just these games (the red list's button)
   const dup = reimport ? null : [];                // games skipped because they're already in the list
   busy++; refreshButtons();
   setStatus("Reading files…");
@@ -2311,15 +2312,29 @@ async function addFiles(files, reimport = false, into = null) {
   if (re) {
     for (const d of re.done) notices.push(`Re-imported ${d.title} from ${d.file}: ${d.tracks} tracks, ticks and tags kept for ${d.matched}`
       + (d.lost.length ? `; not in the original file any more: ${d.lost.join(", ")}` : "") + ".");
-    if (re.added.length) notices.push(`Skipped, not in the list: ${re.added.join(", ")}. (Re-import only replaces games already here; use Add files to add new ones.)`);
+    if (re.added.length && !re.quiet) notices.push(`Skipped, not in the list: ${re.added.join(", ")}. (Re-import only replaces games already here; use Add files to add new ones.)`);
     if (re.kept && re.kept.length) notices.push(`Kept as it was (not re-imported): ${re.kept.join(", ")}. Try the zip that has its .m3u playlist, so the track names match.`);
     if (re.done.length) notices.push("Normalize again to set their volumes.");
+    if (re.quiet && lastRescale) {                  // the red list keeps the games that weren't found in the folder
+      const left = lastRescale.tracks.filter(t => groups.includes(t.group));
+      if (left.length) {
+        const names = [...new Set(left.map(t => t.group.title.trim() || "untitled"))];
+        showRescaleList(left, lastRescale.crushed);
+        notices.push(`Not found in that folder: ${names.join(", ")}.`);
+      }
+    }
   }
   setStatus(problems.length ? [...notices, ...problems].join("  ")
     : [...notices, `${n} tracks in ${groups.length} group(s). Play them, normalize, adjust, then export.`].join("  "), problems.length > 0);
   refreshButtons();
 }
 
+$("rescaleFolder").addEventListener("change", e => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  const only = lastRescale ? [...new Set(lastRescale.tracks.map(t => t.group).filter(g => groups.includes(g)))] : [];
+  if (files.length && only.length) addFiles(files, true, null, only);
+});
 for (const id of ["file", "folder", "reFile", "reFolder"]) $(id).addEventListener("change", e => {
   const files = [...e.target.files];
   e.target.value = "";                             // allow adding the same file again later
@@ -2464,7 +2479,7 @@ async function reimportFromPack(bytes, fileName, re, myEpoch) {
   let msg = "";
   for (const src of list) {
     const gTitle = src.title || fileName.replace(/\.\w+$/, "");
-    const cands = groups.filter(x => sameTitle(x.title, gTitle));
+    const cands = (re ? re.old.filter(x => groups.includes(x)) : groups).filter(x => sameTitle(x.title, gTitle));
     const old = cands.find(x => looseTitle(x.title) === looseTitle(gTitle)) || (cands.length === 1 ? cands[0] : null);   // exact title wins
     if (!old) { re.added.push(gTitle); continue; }
     const used = new Set(); let matched = 0;
@@ -2698,7 +2713,7 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
     if (playing && playing.group === old) stop();
     $("rescaleList").hidden = true;                // normalize again for an up-to-date list
     old.body.remove(); groups = groups.filter(x => x !== old);
-    re.done.push({ title: old.title, tracks: g.tracks.length, matched: usedOld.size,
+    re.done.push({ title: old.title, file: fileName, tracks: g.tracks.length, matched: usedOld.size,
       lost: old.tracks.filter(x => !usedOld.has(x)).map(x => x.name) });
     refreshButtons(); renderGameList();
   }
