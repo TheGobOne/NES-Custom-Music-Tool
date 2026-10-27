@@ -2363,12 +2363,15 @@ function newGroup(title, author, safe, collapsed = false) {
   g.toggle.addEventListener("click", () => setCollapsed(g, !g.collapsed));
   tr.querySelector(".remove").addEventListener("click", () => removeGroup(g));
   const tickAll = on => {
+    const top = tr.getBoundingClientRect().top;       // keep this game's header where it is on screen
     for (const t of g.tracks) {
       const box = t.row && t.row.querySelector(".on");
       if (!box || !t.data || box.checked === on || (on && /too big/.test(t.notes || ""))) continue;
       box.checked = on; box.dispatchEvent(new Event("change"));
     }
     updateRoomCheck();
+    if (!on) setCollapsed(g, true);                   // nothing left on: fold the game away
+    window.scrollBy(0, tr.getBoundingClientRect().top - top);
   };
   tr.querySelector(".tickAll").addEventListener("click", () => tickAll(true));
   tr.querySelector(".untickAll").addEventListener("click", () => tickAll(false));
