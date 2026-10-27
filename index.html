@@ -1728,6 +1728,7 @@ function keepBass(data, v, lowest) {
 // keep the highest (pulse) or the lowest (triangle).
 
 const MIDI_FPS = 60.0988;
+const MIDI_DRUM_LEVEL = 0.45;                       // drums at 45% of full noise volume: they overpower the tune otherwise
 
 // Parts (one per track and channel): {name, ch, drums, notes: [{s, e, p, v}]} with seconds, plus the length.
 function parseMidi(d) {
@@ -1867,7 +1868,7 @@ function midiToSong(parts, mapping, maxSec, opts = {}) {
     .sort((x, y) => x.a - y.a || x.d[0] - y.d[0]).filter((h, i, all) => !i || h.a !== all[i - 1].a);
   channels.noise = hits.map((h, i) => {
     const [, rate, vol, dur] = h.d, len = Math.min(dur, (hits[i + 1] ? hits[i + 1].a : frames) - h.a, frames - h.a);
-    const top = Math.max(1, Math.round(vol * (0.5 + 0.5 * h.v / 127)));
+    const top = Math.max(1, Math.round(vol * MIDI_DRUM_LEVEL * (0.5 + 0.5 * h.v / 127)));
     return { start: h.a, frames: len, rate, mode: 0, vol: Array.from({ length: len }, (_, k) => Math.max(1, Math.round(top * (1 - k / dur)))) };
   }).filter(n => n.frames > 0);
   return { number: 1, frames, end: "loop", loopStart: 0, channels, dpcmUsed: false };
