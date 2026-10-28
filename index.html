@@ -1615,6 +1615,12 @@ function volumeBytes(b) {
     }
   }
   if (fcmds.length) return [fcmds, true];
+  return [seqBytes(b), false];
+}
+
+// Offsets of the volume-sequence values of every instrument that has one.
+function seqBytes(b) {
+  const w = o => b[o] | b[o + 1] << 8;
   const out = [], instList = w(2), first = w(instList), done = new Set();
   for (let ip = instList; ip < first; ip += 2) {
     const p = w(ip);
@@ -1623,7 +1629,7 @@ function volumeBytes(b) {
     if (done.has(s)) continue; done.add(s);
     for (let i = s + 4; i < s + 4 + b[s]; i++) out.push(i);
   }
-  return [out, false];
+  return out;
 }
 
 function scaleVolume(data, pct) {
@@ -1632,6 +1638,9 @@ function scaleVolume(data, pct) {
   const sc = v => v === 0 ? 0 : Math.max(1, Math.min(15, Math.floor(v * pct / 100 + 0.5)));
   const [offsets, isColumn] = volumeBytes(b);
   for (const o of offsets) b[o] = isColumn ? 0xF0 | sc(b[o] & 15) : sc(b[o]);
+  // A song can mix both: notes with a volume column of their own (envelope 15) and notes that play an
+  // envelope (column 15). Scale the envelopes too, or only the first kind gets louder.
+  if (isColumn) for (const o of seqBytes(b)) b[o] = sc(b[o]);
   return b;
 }
 
@@ -2264,6 +2273,7 @@ async function addFiles(files, reimport = false, into = null, only = null) {
   // (into: a game picked with its own Re-import button, which the first music file replaces)
   const re = reimport ? { old: only ? only.slice() : groups.slice(), done: [], added: [], into, quiet: !!only } : null;   // only: just these games (the red list's button)
   const dup = reimport ? null : [];                // games skipped because they're already in the list
+  if (dup) dup.swap = { old: groups.slice(), done: [], added: [], into: null, quiet: true };
   busy++; refreshButtons();
   setStatus("Reading files…");
   const problems = [], notices = [];
@@ -2312,6 +2322,7 @@ async function addFiles(files, reimport = false, into = null, only = null) {
   busy--;
   const n = allTracks().filter(t => t.data).length;
   const dupNames = [...new Set(dup || [])];
+  if (dup && dup.swap) for (const d of dup.swap.done) notices.push(`Replaced ${d.title} with the playlist you added: ${d.tracks} tracks, ticks and tags kept for ${d.matched}.`);
   if (dupNames.length) notices.push(`Skipped ${dupNames.length} game(s) already in the list: ${dupNames.join(", ")}. (To convert one again, use Re-import.)`);
   if (re) {
     for (const d of re.done) notices.push(`Re-imported ${d.title} from ${d.file}: ${d.tracks} tracks, ticks and tags kept for ${d.matched}`
@@ -2621,7 +2632,10 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
   const nsf = loaded.nsf;
   if (nsf.region !== "NTSC") throw new Error("PAL-only NSFs aren't supported (the export format is NTSC).");
   const title = loaded.title || nsf.title || fileName.replace(/\.\w+$/, ""), stemName = fileName.replace(/\.\w+$/, "");
-  if (!re && dup && inList(title)) { dup.push(title); return; }    // already in the list: not converted again
+  if (!re && dup && inList(title)) {
+    // already in the list: skipped, unless it comes with a playlist (an .m3u, or an .nsfe's own): then it replaces that game (the playlist they add wins)
+    if (((m3u && m3u.length) || (loaded.playlist && loaded.playlist.length)) && dup.swap) re = dup.swap; else { dup.push(title); return; }
+  }
   // re-import: the game already in the list, not yet replaced: same title (or titled like this file),
   // else the one sharing the most track names (a game renamed in the list, "Rockman 2" vs "Mega Man 2")
   let old = null;
@@ -2697,7 +2711,8 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
     }
     const o = oldFor(t, k);
     if (o) {
-      t.name = o.name; t.uses = o.uses.slice(); t.psc = o.psc;
+      if (!names.get(i)) t.name = o.name;           // the file's own playlist names win; an unnamed NSF keeps the old names
+      t.uses = o.uses.slice(); t.psc = o.psc;
       if (t.data) { t.enabled = o.enabled && !/too big/.test(t.notes || ""); if (t.endCmd) t.loop = o.loop; }
     }
     g.tracks.push(t); addRow(g, t); showLevel(t);
