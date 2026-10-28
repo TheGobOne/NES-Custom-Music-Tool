@@ -55,6 +55,10 @@
   #coverageList summary { cursor: pointer; }
   #coverageList ul { margin: 2px 0 6px; padding-left: 20px; font-size: 13px; color: var(--muted); }
   .note { color: var(--muted); font-size: 13px; }
+  #radioNow { display: inline-flex; flex-direction: column; vertical-align: middle; margin-left: 10px; line-height: 1.2; }
+  #radioNow .npLabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  #radioNow .npSong { font-size: 20px; font-weight: 700; color: CanvasText; }
+  #radioNow .npGame { font-size: 13px; color: var(--muted); }
   .uses label { margin-right: 6px; font-size: 13px; }
   details.helpd { margin-top: 6px; font-size: 13px; }
   details.helpd > summary { color: var(--muted); cursor: pointer; width: max-content; }
@@ -3059,7 +3063,10 @@ function radioNext() {
     secs = ls + Math.max(passes, Math.ceil((20 - ls) / len)) * len;
   }
   secs = Math.min(cap, secs);
-  $("radioNow").textContent = `Now playing: ${t.group.title.trim() || "untitled"} – ${t.name.trim() || "Song " + t.number}`;
+  const np = $("radioNow"); np.textContent = "";
+  for (const [cls, text] of [["npLabel", "Now playing"], ["npSong", t.name.trim() || "Song " + t.number], ["npGame", t.group.title.trim() || "untitled"]]) {
+    const s = document.createElement("span"); s.className = cls; s.textContent = text; np.append(s);
+  }
   radio.timer = setTimeout(radioNext, secs * 1000);
 }
 $("radio").addEventListener("click", () => {
