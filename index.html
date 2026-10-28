@@ -202,7 +202,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
     <label title="A track never plays longer than this">Longest <input type="number" id="radioMax" value="180" min="20" max="900" step="10"> sec</label>
     <label title="Skip tracks shorter than this (jingles, sound effects)">Skip under <input type="number" id="radioMin" value="10" min="0" max="120" step="5"> sec</label>
   </div>
-  <div class="hint">Plays ticked tracks only, at the volume set in the list, so it sounds the way the game will. Starting or stopping a track by hand ends the radio.</div>
+  <div class="hint">Plays ticked tracks only, at the volume set in the list, so it sounds the way the game will. Each track fades in and out over 3 seconds. Starting or stopping a track by hand ends the radio.</div>
 </fieldset>
 
 <fieldset id="coverage" hidden>
@@ -3000,7 +3000,9 @@ function play(t) {
   const src = audio.createBufferSource();
   src.buffer = t.buffer;
   if (t.loop) { src.loop = true; src.loopStart = t.loop[0]; src.loopEnd = t.loop[1]; }
-  src.connect(previewGain());
+  const fade = audio.createGain();                  // the radio ramps this up and down; by hand it stays at 1
+  src.connect(fade); fade.connect(previewGain());
+  t.fadeGain = fade; t.startedAt = audio.currentTime;
   src.onended = () => { if (playing === t && t.source === src) { playing = null; t.button.textContent = "▶ Play"; } };
   src.start();
   playing = t; t.source = src; t.button.textContent = "■ Stop";
@@ -3008,6 +3010,7 @@ function play(t) {
 
 // Radio: ticked tracks one after another. Starting or stopping any track by hand ends it.
 let radio = null, radioBusy = false;
+const RADIO_FADE = 3;                              // seconds of fade in and fade out for each radio track
 function endRadio() {
   if (!radio) return;
   clearTimeout(radio.timer); radio = null;
@@ -3063,6 +3066,10 @@ function radioNext() {
     secs = ls + Math.max(passes, Math.ceil((20 - ls) / len)) * len;
   }
   secs = Math.min(cap, secs);
+  const f = Math.min(RADIO_FADE, secs / 2), g = t.fadeGain.gain, t0 = t.startedAt;   // fade in over the first seconds, out over the last
+  g.cancelScheduledValues(0);
+  g.setValueAtTime(0, t0); g.linearRampToValueAtTime(1, t0 + f);
+  g.setValueAtTime(1, t0 + secs - f); g.linearRampToValueAtTime(0, t0 + secs);
   const np = $("radioNow"); np.textContent = "";
   for (const [cls, text] of [["npLabel", "Now playing"], ["npSong", t.name.trim() || "Song " + t.number], ["npGame", t.group.title.trim() || "untitled"]]) {
     const s = document.createElement("span"); s.className = cls; s.textContent = text; np.append(s);
