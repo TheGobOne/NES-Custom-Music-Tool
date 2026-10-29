@@ -2887,6 +2887,7 @@ async function showLevel(t) {
   const off = Math.round(Math.abs(diff) * 100), warn = t.onTarget || maxed ? "" : off >= 31 ? "lvRed" : off >= 21 ? "lvOrange" : off >= 11 ? "lvYellow" : "";
   t.levelCell.textContent = "";
   const span = document.createElement("span"); span.textContent = text; if (warn) span.className = "lv " + warn;
+  t.lvWarn = warn;
   t.levelCell.append(span);
   t.levelCell.title = `Loudness ${absText} (RMS, 0 dB = full scale); ${dbText} from the target (${(20 * Math.log10(targetLoudness())).toFixed(1).replace("-", "−")} dB).`;
   showGroupLevel(t.group);
@@ -2898,6 +2899,10 @@ function showGroupLevel(g) {
   const n = measured.filter(t => t.onTarget).length, maxed = measured.filter(t => t.maxed).length;
   g.sumCell.textContent = n === measured.length ? "· all ticked tracks are within range ✓"
     : `· ${n} of ${measured.length} ticked tracks are within range` + (maxed ? ` (${maxed} can't get there)` : "");
+  // coloured like the worst out-of-range track in it
+  const rank = ["", "lvYellow", "lvOrange", "lvRed"], worst = Math.max(...measured.map(t => rank.indexOf(t.lvWarn || "")));
+  g.sumCell.classList.remove("lv", ...rank.slice(1));
+  if (worst > 0) g.sumCell.classList.add("lv", rank[worst]);
 }
 
 // Grow a name box to fit its text (hidden boxes can't be measured: they're fitted when shown).
