@@ -2455,10 +2455,10 @@ function newGroup(title, author, safe, collapsed = false) {
           <input type="file" accept=".nsf,.nsfe,.m3u,.json5,.zip,.7z" multiple></label>
         <label class="pick regame importM3u" title="Use track names from an .m3u playlist for this game's tracks (matched by track number)">Import playlist (.m3u)
           <input type="file" accept=".m3u,.m3u8"></label>
+        <button class="saveM3u" title="Save this game's track numbers and names as an .m3u playlist. Add it with the game's NSF when you re-import, so the names and tracks match.">Save playlist (.m3u)</button>
         <button class="exportGame single" title="Export only this game as its own .json5 file">Export this game (.json5)</button>
         <button class="exportGame both" data-game="z1" title="Export only this game's ZORA tracks as a .json5 file">Export ZORA</button>
         <button class="exportGame both" data-game="z2" title="Export only this game's Z2R tracks as a .json5 file">Export Z2R</button>
-        <button class="saveM3u" title="Save this game's track numbers and names as an .m3u playlist. Add it with the game's NSF when you re-import, so the names and tracks match.">Save playlist (.m3u)</button>
         <button class="remove" title="Remove this game and its tracks from the list">✕ Remove game</button>
       </div>
     </div></div></td>`;
@@ -2534,9 +2534,11 @@ function newGroup(title, author, safe, collapsed = false) {
   g.offHead.firstChild.innerHTML = `<button class="offToggle" title="Show or hide the unticked tracks"></button> <span></span>`;
   g.offCollapsed = true;
   g.offHead.querySelector(".offToggle").addEventListener("click", () => {
+    const top = g.offHead.getBoundingClientRect().top;     // keep the Unticked bar where it is on screen
     g.offCollapsed = !g.offCollapsed;
     if (g.offCollapsed && playing && g.tracks.includes(playing) && !(playing.data && playing.enabled)) stop();
     placeRows(g);
+    window.scrollBy(0, g.offHead.getBoundingClientRect().top - top);
   });
   setCollapsed(g, collapsed);
   $("tracks").appendChild(g.body);
