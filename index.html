@@ -55,6 +55,10 @@
   #coverageList summary { cursor: pointer; }
   #coverageList ul { margin: 2px 0 6px; padding-left: 20px; font-size: 13px; color: var(--muted); }
   .note { color: var(--muted); font-size: 13px; }
+  .lv { padding: 1px 5px; border-radius: 4px; color: CanvasText; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .lvYellow { background: color-mix(in srgb, #facc15 45%, transparent); }
+  .lvOrange { background: color-mix(in srgb, #fb923c 50%, transparent); }
+  .lvRed { background: color-mix(in srgb, #ef4444 55%, transparent); }
   .exportGame.both, body.bothMode .exportGame.single { display: none; }
   body.bothMode .exportGame.both { display: inline-block; }
   #radioNow { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 18px; vertical-align: middle; margin-left: 10px; line-height: 1.2; }
@@ -2877,8 +2881,13 @@ async function showLevel(t) {
   const db = 20 * Math.log10(1 + diff), dbText = `${db >= 0 ? "+" : "−"}${Math.abs(db).toFixed(1)} dB`;
   const abs = 20 * Math.log10((1 + diff) * targetLoudness());
   const absText = `${abs.toFixed(1).replace("-", "−")} dB`;
-  t.levelCell.textContent = `${absText} · ` + (Math.abs(diff) <= NORMALIZE_TOLERANCE ? "✓ within range"
+  const text = `${absText} · ` + (Math.abs(diff) <= NORMALIZE_TOLERANCE ? "✓ within range"
     : maxed ? `✓ ${pct} (as loud as it cleanly gets)` : `${pct} ${diff > 0 ? "louder" : "quieter"}`);
+  // out of range: yellow 11-20%, orange 21-30%, red 31% and over (a track that can't get louder isn't flagged)
+  const off = Math.round(Math.abs(diff) * 100), warn = t.onTarget || maxed ? "" : off >= 31 ? "lvRed" : off >= 21 ? "lvOrange" : off >= 11 ? "lvYellow" : "";
+  t.levelCell.textContent = "";
+  const span = document.createElement("span"); span.textContent = text; if (warn) span.className = "lv " + warn;
+  t.levelCell.append(span);
   t.levelCell.title = `Loudness ${absText} (RMS, 0 dB = full scale); ${dbText} from the target (${(20 * Math.log10(targetLoudness())).toFixed(1).replace("-", "−")} dB).`;
   showGroupLevel(t.group);
 }
