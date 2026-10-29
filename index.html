@@ -125,7 +125,7 @@ so the Export buttons can't save anything here. Download "NES Custom Music Tool.
       <li><b>Add your music.</b> Drop NSF or NSFe files (or a zip / 7z / folder of them), or an existing .json5 pack onto the page.
         For a plain .nsf, add its .m3u playlist too so the tracks get names and the sound effects are left out. An .nsfe has them built in.</li>
       <li><b>Check the tracks.</b> Play them, tick the ones you want, and tag each with where it can play ("Use for").
-        Tracks that don't loop are cut at the max length. Search finds games and tracks; the Radio plays your ticked tracks at random.</li>
+        Tracks that don't loop are cut at the max length. If a track sounds buzzy in the game, try its Smooth box. Search finds games and tracks; the Radio plays your ticked tracks at random.</li>
       <li><b>Normalize volumes</b> to set every track to the same loudness, so the music sits right against the game's sound effects.
         Adjust the target level if it's too loud or quiet in the game, and fix any single track with its Vol box.</li>
       <li><b>Export</b> the .json5 pack and load it in the randomizer. Keep your master pack: add more games to it later, and use
@@ -160,6 +160,10 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   Use it when a pack's tracks have been rescaled too often and sound thin.</div>
   <div class="hint">Track names: an .nsfe file has them built in. For a plain .nsf, add its .m3u playlist files with it (adding the
   whole folder or archive does that). Either way only the playlist's tracks are listed (rips also contain sound effects).</div>
+  <div class="hint">Smooth (a box on each track): some songs make the pulse channels' volume jump up and down every frame or two, which
+  can sound buzzy in the game even when the preview sounds fine (FF2's battle theme does this). Smooth averages that flicker out. The notes,
+  timing and loop stay the same, and you hear the result in Play. A track with no flicker is left alone (the box unticks itself). Leave it off for
+  songs whose tremolo or echo is meant to be there. It is baked into the export, so keep your master pack if you want to undo it later.</div>
   </details>
 </fieldset>
 
