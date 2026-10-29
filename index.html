@@ -55,6 +55,8 @@
   #coverageList summary { cursor: pointer; }
   #coverageList ul { margin: 2px 0 6px; padding-left: 20px; font-size: 13px; color: var(--muted); }
   .note { color: var(--muted); font-size: 13px; }
+  .exportGame.both, body.bothMode .exportGame.single { display: none; }
+  body.bothMode .exportGame.both { display: inline-block; }
   #radioNow { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 18px; vertical-align: middle; margin-left: 10px; line-height: 1.2; }
   #radioNow .npLabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   #radioNow .npSong { font-size: 20px; font-weight: 700; color: CanvasText; }
@@ -89,8 +91,8 @@
   button.toggle { width: 34px; padding: 2px 0; margin-right: 6px; }
   button.offToggle { width: 34px; padding: 1px 0; }
   button.remove { float: right; font-size: 13px; padding: 2px 10px; }
-  .ghead { display: flex; align-items: flex-start; gap: 10px; } .gcol { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
-  .gbtns { display: flex; gap: 6px; align-items: center; }
+  .ghead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; } .gcol { display: contents; }
+  .gbtns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 0 0 100%; padding-left: 50px; }   /* second row, starting under the title */
   .gbtns label.regame, .gbtns button { float: none; margin: 0; font-size: 13px; padding: 2px 10px; height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; }
   label.regame { float: right; font-size: 13px; padding: 2px 10px; margin-right: 6px; }
   .gamelist { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; }
@@ -214,7 +216,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
 </fieldset>
 
 <table id="tracks" hidden>
-  <thead><tr><th></th><th>On</th><th>#</th><th>Name</th><th>Use for</th><th>Loop</th><th class="num">Vol %</th><th>Level</th><th class="num">Length</th><th class="num">Size</th><th>Notes</th></tr></thead>
+  <thead><tr><th></th><th>On</th><th>#</th><th>Name</th><th>Use for</th><th>Loop</th><th title="Flatten a fast volume wobble (tremolo) that sounds buzzy">Smooth</th><th class="num">Vol %</th><th>Level</th><th class="num">Length</th><th class="num">Size</th><th>Notes</th></tr></thead>
 </table>
 
 <fieldset id="exportbox" hidden>
@@ -1644,6 +1646,45 @@ function scaleVolume(data, pct) {
   return b;
 }
 
+// Flatten a fast volume flicker (the volume jumping up and down every frame or two, which sounds buzzy on
+// the pulse channels). The song is played back, the flickering stretches of the two pulse channels get the
+// average of the 4 frames around them, and the result is compiled again. Plain decays and swells are left
+// alone. Returns {data, endCmd}, or null when there is nothing to flatten.
+function smoothTrack(data) {
+  const info = ftPlay(data, Math.round(60.0988 * 900));
+  const n = info.frames, channels = {};
+  let changed = 0;
+  CH_NAMES.forEach((name, ch) => {
+    const st = info.states[ch].slice(0, n).map(s => s ? { ...s } : s);
+    if (ch < 2) {
+      const v = st.map(s => s && s.vol !== undefined ? s.vol : null);
+      for (let i = 0; i < n; i++) {
+        if (v[i] === null || v[i] === 0) continue;
+        let flips = 0, dir = 0, lo = 99, hi = 0, ok = true;
+        for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k++) {
+          if (v[k] === null) { ok = false; break; }
+          lo = Math.min(lo, v[k]); hi = Math.max(hi, v[k]);
+          if (k > Math.max(0, i - 3)) { const d = Math.sign(v[k] - v[k - 1]); if (d && dir && d !== dir) flips++; if (d) dir = d; }
+        }
+        if (!ok || flips < 3 || hi - lo < 3) continue;
+        let sum = 0, c = 0;
+        for (let k = Math.max(0, i - 1); k <= Math.min(n - 1, i + 2); k++) if (v[k] !== null) { sum += v[k]; c++; }
+        const nv = Math.max(1, Math.round(sum / c));
+        if (nv !== v[i]) { st[i].vol = nv; changed++; }
+      }
+    }
+    const tr = new Track(name);
+    for (let f = 0; f < n; f++) tr.feed(f, st[f], false);
+    channels[name] = tr.finish(n);
+  });
+  if (!changed) return null;
+  const c = compileSong({ frames: n, loopStart: info.loopStart ?? null, channels });
+  if (!c.data) return null;
+  const chk = ftPlay(c.data, Math.round(60.0988 * 900));
+  if (chk.frames !== n || chk.loopStart !== info.loopStart) return null;    // didn't come back the same length: leave the track alone
+  return { data: c.data, endCmd: chk.endCmd };
+}
+
 // The highest Vol % that makes a track louder without distorting it: its loudest volume value
 // reaches 15 and nothing is cut off at the top (100 when it's already there).
 function peakVolume(data) {
@@ -1776,7 +1817,7 @@ function leadToBass(data) {
   return bass > 0.01 ? loudness(data, 100, [true, true, false, true]) / bass : null;
 }
 const WORKER_FNS = {
-  convertTrack, loudness, peakVolume, leadToBass,
+  convertTrack, smoothTrack, loudness, peakVolume, leadToBass,
   volumeFor: (data, target, entries, lowest) => { const cache = new Map(entries); const v = volumeFor(data, target, cache, lowest); return [v, [...cache]]; },
 };
 if (typeof WorkerGlobalScope !== "undefined" && typeof self !== "undefined" && self instanceof WorkerGlobalScope) {
@@ -2121,7 +2162,7 @@ function read7z(bytes) {
 
 
 if (typeof module !== "undefined") module.exports = { soundLoop,
-  tightenLoop, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
+  tightenLoop, smoothTrack, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
 
 </script>
 <script>
@@ -2183,6 +2224,7 @@ function setMode(key) {
   $("landing").hidden = true; $("app").hidden = false;
   const both = key === "both";
   $("export").hidden = $("exportEach").hidden = both;
+  document.body.classList.toggle("bothMode", both);
   $("exportZora").hidden = $("exportZ2r").hidden = $("exportCombined").hidden = $("bothHint").hidden = !both;
   $("normalHint").hidden = both;
 }
@@ -2298,6 +2340,16 @@ async function addFiles(files, reimport = false, into = null, only = null) {
     }
   }
   const nsfeStems = new Set(entries.filter(f => /\.nsfe$/i.test(f.name)).map(f => stem(f.name)));
+  // a playlist named for a different file than the one added (the .nsf was renamed since the playlist was saved):
+  // when exactly one playlist and one .nsf are left over, they belong together
+  {
+    const nsfs = entries.filter(f => /\.nsf$/i.test(f.name) && !nsfeStems.has(stem(f.name)) && !playlists.has(f.name.toLowerCase()));
+    const orphans = [...playlists.keys()].filter(k => !entries.some(f => /\.nsf$/i.test(f.name) && f.name.toLowerCase() === k));
+    if (nsfs.length === 1 && orphans.length === 1 && !nsfeStems.has(stem(orphans[0]))) {
+      playlists.set(nsfs[0].name.toLowerCase(), playlists.get(orphans[0])); playlists.delete(orphans[0]);
+      notices.push(`Used the playlist for ${nsfs[0].name} (it was saved under another file name).`);
+    }
+  }
   const used = new Set();
   for (const file of entries) {
     if (myEpoch !== epoch) break;
@@ -2388,7 +2440,7 @@ let groupCounter = 0;
 function newGroup(title, author, safe, collapsed = false) {
   const g = { rid: ++groupCounter, title, author, safe, tracks: [], body: document.createElement("tbody"), collapsed };
   const tr = document.createElement("tr"); tr.className = "group";
-  tr.innerHTML = `<td colspan="11"><div class="ghead"><button class="toggle" title="Show or hide this game's tracks"></button>
+  tr.innerHTML = `<td colspan="12"><div class="ghead"><button class="toggle" title="Show or hide this game's tracks"></button>
     <label>Title <input type="text" class="gt"></label>
     <div class="gcol">
       <div><label><input type="checkbox" class="gs"> Safe for Streaming</label> <span class="gwarn" hidden title="This game was converted from a plain .nsf with no .m3u playlist, so its tracks are named Song 1, Song 2… and every track in the file is listed (sound effects too). Add the .m3u with the NSF (Re-import this game), or use Import playlist.">⚠ no playlist: track names are generic</span> <span class="gcount note"></span> <span class="gsum note"></span></div>
@@ -2399,6 +2451,9 @@ function newGroup(title, author, safe, collapsed = false) {
           <input type="file" accept=".nsf,.nsfe,.m3u,.json5,.zip,.7z" multiple></label>
         <label class="pick regame importM3u" title="Use track names from an .m3u playlist for this game's tracks (matched by track number)">Import playlist (.m3u)
           <input type="file" accept=".m3u,.m3u8"></label>
+        <button class="exportGame single" title="Export only this game as its own .json5 file">Export this game (.json5)</button>
+        <button class="exportGame both" data-game="z1" title="Export only this game's ZORA tracks as a .json5 file">Export ZORA</button>
+        <button class="exportGame both" data-game="z2" title="Export only this game's Z2R tracks as a .json5 file">Export Z2R</button>
         <button class="saveM3u" title="Save this game's track numbers and names as an .m3u playlist. Add it with the game's NSF when you re-import, so the names and tracks match.">Save playlist (.m3u)</button>
         <button class="remove" title="Remove this game and its tracks from the list">✕ Remove game</button>
       </div>
@@ -2444,6 +2499,18 @@ function newGroup(title, author, safe, collapsed = false) {
     setStatus(n ? `Renamed ${n} track(s) of ${g.title} from ${file.name}.` : `No tracks of ${g.title} matched ${file.name} (it needs the same track numbers).`, !n);
     renderGameList();
   });
+  tr.querySelectorAll(".exportGame").forEach(btn => btn.addEventListener("click", () => exportGuard(async () => {
+    const game = mode.key === "both" ? btn.dataset.game : null;
+    const out = buildExport(game, g);
+    if (!out) return;
+    if (!out.length) { $("exportnote").textContent = `No track of ${g.title.trim() || "this game"} is tagged for ${BOTH_NAMES[game]} yet.`; return; }
+    const text = toPlayerJson5(out, game || mode.key);
+    const name = safeName(g.title) + (game ? ` (${BOTH_NAMES[game]})` : "") + ".json5";
+    const saved = await saveFile(text, name);
+    if (!saved) { cancelled(() => download(new Blob([text], { type: "application/json" }), name)); return; }
+    const items = out[0].items;
+    $("exportnote").textContent = `Saved ${saved}: ${items.filter(i => i.enabled).length} of ${items.length} tracks on.` + (FRAMED ? FRAMED_HINT : "");
+  })));
   tr.querySelector(".saveM3u").addEventListener("click", () => {
     const own = g.tracks.filter(t => !t.fromPack && t.data);
     if (!g.source || !own.length) { setStatus("This game came from a music pack, so its original track numbers aren't known. Re-import it from its NSF first, then save the playlist.", true); return; }
@@ -2458,7 +2525,7 @@ function newGroup(title, author, safe, collapsed = false) {
   });
   g.body.appendChild(tr);
   // two sections under each game: ticked tracks (exported as on), then unticked ones
-  const head = cls => { const r = document.createElement("tr"); r.className = "sub " + cls; r.innerHTML = `<td colspan="11"></td>`; g.body.appendChild(r); return r; };
+  const head = cls => { const r = document.createElement("tr"); r.className = "sub " + cls; r.innerHTML = `<td colspan="12"></td>`; g.body.appendChild(r); return r; };
   g.onHead = head("onHead"); g.offHead = head("offHead");
   g.offHead.firstChild.innerHTML = `<button class="offToggle" title="Show or hide the unticked tracks"></button> <span></span>`;
   g.offCollapsed = true;
@@ -2832,6 +2899,7 @@ function addRow(g, t) {
     <td>${t.number}</td><td class="name"><textarea rows="1" spellcheck="false"></textarea></td>
     <td class="uses"></td>
     <td><input type="checkbox" class="loop" ${t.loop ? "checked" : ""} ${t.endCmd ? "" : "disabled title=\"This track has no end command to change\""}></td>
+    <td><input type="checkbox" class="smooth" ${ok ? "" : "disabled"} title="Flatten a fast volume wobble (tremolo) that sounds buzzy"></td>
     <td class="num"><input type="number" class="vol" min="5" max="300" step="5" value="${t.vol}"></td>
     <td class="level note"></td>
     <td class="num">${ok ? fmt(t.info.frames / FRAME_RATE) : ""}</td>
@@ -2858,6 +2926,20 @@ function addRow(g, t) {
   t.usesCell = tr.querySelector("td.uses");
   fillUses(t);
   tr.querySelector(".loop").addEventListener("change", e => { t.loop = e.target.checked; if (playing === t) play(t); });
+  tr.querySelector(".smooth").addEventListener("change", async e => {
+    const box = e.target; box.disabled = true;
+    try {
+      if (box.checked && !(t.smoothed && t.smoothed.src === t.data)) {
+        setStatus(`Flattening the volume flicker in ${t.name}…`);
+        const r = await run("smoothTrack", t.data);
+        if (!r) { box.checked = false; setStatus(`${t.name}: no fast volume flicker found to flatten.`, true); return; }
+        t.smoothed = { src: t.data, data: new Uint8Array(r.data), endCmd: r.endCmd };
+        setStatus(`${t.name}: volume flicker flattened.`);
+      }
+      t.smooth = box.checked; t.levels = new Map(); showLevel(t); if (playing === t) play(t);
+    } catch (err) { box.checked = false; setStatus(`${t.name}: ${err.message}`, true); }
+    finally { box.disabled = false; }
+  });
   t.volInput = tr.querySelector(".vol");
   t.volInput.addEventListener("change", () => {
     t.vol = Math.max(5, Math.min(300, Math.round(+t.volInput.value || 100))); t.volInput.value = t.vol;
@@ -2996,7 +3078,10 @@ function showCount(g) {
 }
 
 // What gets saved for a track: its data at its volume, ending as its Loop box says.
-const exportData = t => setLoop(scaleVolume(t.data, effectiveVolume(t)), t.endCmd, t.loop);
+const exportData = t => {
+  const sm = t.smooth && t.smoothed && t.smoothed.src === t.data ? t.smoothed : null;      // the flattened copy, when it's switched on
+  return setLoop(scaleVolume(sm ? sm.data : t.data, effectiveVolume(t)), sm ? sm.endCmd : t.endCmd, t.loop);
+};
 
 // Preview plays the exported data itself (at the track's volume), so what you hear is what you export.
 function play(t) {
@@ -3004,13 +3089,13 @@ function play(t) {
   if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
   audio.resume();
   const vol = effectiveVolume(t);
-  if (!t.buffer || t.bufferVolume !== vol || t.bufferLoop !== t.loop) {
+  if (!t.buffer || t.bufferVolume !== vol || t.bufferLoop !== t.loop || t.bufferSmooth !== !!t.smooth) {
     const info = ftPlay(exportData(t), MAX_PREVIEW_FRAMES);
     const r = renderAudio(info, FRAME_RATE, audio.sampleRate);
     t.buffer = audio.createBuffer(1, r.samples.length, audio.sampleRate);
     t.buffer.getChannelData(0).set(r.samples);
     t.loop = r.loopStartSec != null ? [r.loopStartSec, r.endSec] : null;
-    t.bufferVolume = vol; t.bufferLoop = t.loop;
+    t.bufferVolume = vol; t.bufferLoop = t.loop; t.bufferSmooth = !!t.smooth;
   }
   const src = audio.createBufferSource();
   src.buffer = t.buffer;
@@ -3254,14 +3339,14 @@ function showRescaleList(tracks, crushed = []) {
 }
 
 // The groups to save, or null (with a note) if a ticked track still has no "Use for".
-function buildExport(game = null) {
-  const both = mode.key === "both";
-  const noUses = allTracks().filter(t => t.data && t.enabled && !t.uses.some(u => activeUses().includes(u)));
+function buildExport(game = null, only = null) {
+  const both = mode.key === "both", gs = only ? [only] : groups;
+  const noUses = (only ? only.tracks : allTracks()).filter(t => t.data && t.enabled && !t.uses.some(u => activeUses().includes(u)));
   if (noUses.length) { $("exportnote").textContent = `Tick at least one "Use for" box for: ${noUses.map(t => t.name).join(", ")}.`; return null; }
   if (both) {
     // one game's master: only the tracks tagged for it, with only its tags
     const gm = GAME_MODES[game];
-    return groups.map(g => ({
+    return gs.map(g => ({
       title: g.title, author: g.author, primary_square_chan: gm.groupPsc, streaming_safe: g.safe,
       items: g.tracks.filter(t => t.data && exportTags(t.uses, game).length).map(t => {
         const data = exportData(t);
@@ -3270,7 +3355,7 @@ function buildExport(game = null) {
       }),
     })).filter(g => g.items.length);
   }
-  return groups.map(g => ({
+  return gs.map(g => ({
     title: g.title, author: g.author, primary_square_chan: mode.groupPsc, streaming_safe: g.safe,
     items: g.tracks.filter(t => t.data).map(t => ({ enabled: t.enabled, title: t.name.trim() || `Song ${t.number}`,
       uses: exportUses(t), primary_square_chan: t.psc,
