@@ -167,13 +167,14 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <div class="hint">Smooth (a box on each track): some songs make the pulse channels' volume jump up and down every frame or two, which
   can sound buzzy in the game even when the preview sounds fine (FF2's battle theme does this). Smooth averages that flicker out. The notes,
   timing and loop stay the same, and you hear the result in Play. A track with no flicker is left alone (the box unticks itself). Leave it off for
-  songs whose tremolo or echo is meant to be there. It is baked into the export, so keep your master pack if you want to undo it later.</div>
+  songs whose tremolo or echo is meant to be there. "Find buzzy tracks" ticks Smooth for you on every ticked track where over 10% of the pulse playing flickers. It is baked into the export, so keep your master pack if you want to undo it later.</div>
   </details>
 </fieldset>
 
 <fieldset id="meta" hidden>
   <legend>2. Check tracks</legend>
   <button id="normalize">Normalize volumes</button>
+  <button id="findBuzzy" title="Ticks Smooth on the ticked tracks where over 10% of the pulse playing is fast volume flicker (what makes some tracks sound buzzy in the game)">Find buzzy tracks</button>
   <button id="collapseAll">Collapse all</button> <button id="expandAll">Expand all</button>
   <input type="search" id="search" placeholder="Search games and tracks…" style="min-width:16em">
   <button id="gameListBtn">Show game list</button>
@@ -1658,16 +1659,16 @@ function scaleVolume(data, pct) {
 // the pulse channels). The song is played back, the flickering stretches of the two pulse channels get the
 // average of the 4 frames around them, and the result is compiled again. Plain decays and swells are left
 // alone. Returns {data, endCmd}, or null when there is nothing to flatten.
-function smoothTrack(data) {
-  const info = ftPlay(data, Math.round(60.0988 * 900));
-  const n = info.frames, channels = {};
-  let changed = 0;
-  CH_NAMES.forEach((name, ch) => {
+function flickerStates(info) {
+  const n = info.frames;
+  let changed = 0, sounding = 0;
+  const states = CH_NAMES.map((name, ch) => {
     const st = info.states[ch].slice(0, n).map(s => s ? { ...s } : s);
     if (ch < 2) {
       const v = st.map(s => s && s.vol !== undefined ? s.vol : null);
       for (let i = 0; i < n; i++) {
         if (v[i] === null || v[i] === 0) continue;
+        sounding++;
         let flips = 0, dir = 0, lo = 99, hi = 0, ok = true;
         for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k++) {
           if (v[k] === null) { ok = false; break; }
@@ -1681,11 +1682,26 @@ function smoothTrack(data) {
         if (nv !== v[i]) { st[i].vol = nv; changed++; }
       }
     }
+    return st;
+  });
+  return { states, changed, sounding };
+}
+
+// How much of a track's pulse playing is volume flicker (0 to 1): the share of sounding pulse frames that Smooth would change.
+function flickerShare(data) {
+  const f = flickerStates(ftPlay(data, Math.round(60.0988 * 900)));
+  return f.sounding ? f.changed / f.sounding : 0;
+}
+
+function smoothTrack(data) {
+  const info = ftPlay(data, Math.round(60.0988 * 900)), n = info.frames, channels = {};
+  const f = flickerStates(info);
+  if (!f.changed) return null;
+  CH_NAMES.forEach((name, ch) => {
     const tr = new Track(name);
-    for (let f = 0; f < n; f++) tr.feed(f, st[f], false);
+    for (let k = 0; k < n; k++) tr.feed(k, f.states[ch][k], false);
     channels[name] = tr.finish(n);
   });
-  if (!changed) return null;
   const c = compileSong({ frames: n, loopStart: info.loopStart ?? null, channels });
   if (!c.data) return null;
   const chk = ftPlay(c.data, Math.round(60.0988 * 900));
@@ -1825,7 +1841,7 @@ function leadToBass(data) {
   return bass > 0.01 ? loudness(data, 100, [true, true, false, true]) / bass : null;
 }
 const WORKER_FNS = {
-  convertTrack, smoothTrack, loudness, peakVolume, leadToBass,
+  convertTrack, smoothTrack, flickerShare, loudness, peakVolume, leadToBass,
   volumeFor: (data, target, entries, lowest) => { const cache = new Map(entries); const v = volumeFor(data, target, cache, lowest); return [v, [...cache]]; },
 };
 if (typeof WorkerGlobalScope !== "undefined" && typeof self !== "undefined" && self instanceof WorkerGlobalScope) {
@@ -2170,7 +2186,7 @@ function read7z(bytes) {
 
 
 if (typeof module !== "undefined") module.exports = { soundLoop,
-  tightenLoop, smoothTrack, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
+  tightenLoop, smoothTrack, flickerShare, leadToBass, convertTrack, WORKER_FNS, MIN_NORMALIZE, peakVolume, setLoop, parseNsfe, parseM3u, loudness, volumeFor,  guessMelody, GAME_MODES, useLabel, exportTags, BOTH_NAMES, detectMode, fitsBanks, scaleVolume,  loadFile, parseNsf, runSong, compileSong, toBase64, fromBase64, toPlayerJson5, readZip, renderAudio, songStates, expand, parseJson5, ftPlay, SongCompiler };
 
 </script>
 <script>
@@ -2793,6 +2809,15 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
       if (t.data) { t.enabled = o.enabled && !/too big/.test(t.notes || ""); if (t.endCmd) t.loop = o.loop; }
     }
     g.tracks.push(t); addRow(g, t); showLevel(t);
+    if (o && o.smooth && t.data) {                  // Smooth was on for the old track: flatten the fresh one the same way
+      try {
+        const r = await run("smoothTrack", t.data);
+        if (r && myEpoch === epoch) {
+          t.smoothed = { src: t.data, data: new Uint8Array(r.data), endCmd: r.endCmd }; t.smooth = true;
+          t.row.querySelector(".smooth").checked = true; t.levels = new Map(); showLevel(t);
+        }
+      } catch (err) { /* left unsmoothed */ }
+    }
   }
   // most tracks couldn't be matched (different names, different track count): replacing would drop
   // their ticks and tags, so ask, and keep the old game if the answer is no
@@ -3248,6 +3273,31 @@ $("pvol").addEventListener("input", () => {
 });
 
 $("normalize").addEventListener("click", () => normalizeAll(false));
+// Smooth on for every ticked track whose pulse playing is mostly volume flicker
+const FLICKER_AUTO = 0.10;
+$("findBuzzy").addEventListener("click", async () => {
+  const list = allTracks().filter(t => t.data && t.enabled && t.info.frames && !t.smooth);
+  if (!list.length) { setStatus("No ticked tracks left to check."); return; }
+  stop(); busy++; refreshButtons();
+  const hits = [];
+  try {
+    setStatus(`Looking for buzzy tracks in ${list.length} ticked tracks…`);
+    const shares = await Promise.all(list.map(t => run("flickerShare", t.data).catch(() => 0)));
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i];
+      if (shares[i] < FLICKER_AUTO || !t.group || !groups.includes(t.group) || !t.row) continue;
+      setStatus(`Smoothing ${t.name}…`);
+      const r = await run("smoothTrack", t.data).catch(() => null);
+      if (!r) continue;
+      t.smoothed = { src: t.data, data: new Uint8Array(r.data), endCmd: r.endCmd }; t.smooth = true;
+      t.row.querySelector(".smooth").checked = true; t.levels = new Map(); showLevel(t);
+      hits.push(`${t.group.title.trim() || "untitled"} / ${t.name.trim() || "Song " + t.number} (${Math.round(shares[i] * 100)}%)`);
+    }
+  } catch (err) { setStatus(`Find buzzy tracks failed: ${err.message || err}.`, true); return; }
+  finally { busy--; refreshButtons(); }
+  setStatus(hits.length ? `Smooth ticked on ${hits.length} buzzy track(s): ${hits.join(", ")}. Untick Smooth on any you want back. Normalize again if you had already.`
+                        : `No ticked track has much fast volume flicker (checked ${list.length}).`);
+});
 $("rescaleAnyway").addEventListener("click", () => normalizeAll(true));
 const BASS_FLOOR = 80;                              // same as the lowest Normalize cuts the lead and drums
 async function normalizeAll(rescalePack) {
