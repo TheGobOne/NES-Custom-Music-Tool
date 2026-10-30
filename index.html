@@ -3319,8 +3319,14 @@ async function normalizeAll(rescalePack) {
   // lead/drums far quieter than the bass (turned down too far by earlier normalizing): can't be repaired
   const ratios = await Promise.all(list.map(t => t.fromPack ? run("leadToBass", t.data) : null));
   const crushed = list.filter((t, i) => ratios[i] !== null && ratios[i] < 0.25);
-  const skipped = rescalePack ? crushed : [...new Set([...again, ...crushed])];
-  showRescaleList(skipped, crushed);
+  // louder than the target even with the lead and drums at the floor: the bass keeps them there, and rescaling them
+  // would only lose quality. Left alone, and not listed in red.
+  const heldAtFloor = [];
+  for (const t of again) if (await levelAt(t, BASS_FLOOR) > target * (1 + NORMALIZE_TOLERANCE)) heldAtFloor.push(t);
+  const fixable = again.filter(t => !heldAtFloor.includes(t));
+  const shown = rescalePack ? crushed : [...new Set([...fixable, ...crushed])];
+  const skipped = [...new Set([...shown, ...heldAtFloor])];
+  showRescaleList(shown, crushed);
   const myEpoch = epoch;
   busy++; refreshButtons();
   let capped = 0, kept = 0, done = 0;
@@ -3363,7 +3369,7 @@ async function normalizeAll(rescalePack) {
   groups.forEach(showGroupLevel);
   const quiet = list.filter(t => t.enabled && t.levels.get(t.vol) < target * (1 - NORMALIZE_TOLERANCE));
   const ticked = list.filter(t => t.enabled);
-  const heldByBass = ticked.filter(t => t.vol === BASS_FLOOR && t.levels.get(t.vol) > target * (1 + NORMALIZE_TOLERANCE));
+  const heldByBass = ticked.filter(t => (t.vol === BASS_FLOOR || heldAtFloor.includes(t)) && t.levels.get(t.vol) > target * (1 + NORMALIZE_TOLERANCE));
   const onTarget = ticked.filter(t => Math.abs(t.levels.get(t.vol) / target - 1) <= NORMALIZE_TOLERANCE).length;
   setStatus(`Normalized: ${onTarget} of ${ticked.length} ticked tracks are within range (${safetyText()} of the target).`
     + (quiet.length ? ` ${quiet.length} can't get there (see the note under Target level).` : ""));
@@ -3376,7 +3382,7 @@ async function normalizeAll(rescalePack) {
     text += ` ${quiet.length} can't get as loud as the target, even boosted as far as they stay clean: `
       + `${names.slice(0, 8).join(", ")}${names.length > 8 ? ` and ${names.length - 8} more` : ""}. Their Level and Notes say how far they got.`;
   }
-  if (heldByBass.length) text += ` ${heldByBass.length} stay louder than the target because of their bass (the bass can't be turned down; their lead and drums are at the ${BASS_FLOOR}% floor): ${heldByBass.slice(0, 6).map(t => t.name.trim() || "Song " + t.number).join(", ")}${heldByBass.length > 6 ? ` and ${heldByBass.length - 6} more` : ""}.`;
+  if (heldByBass.length) text += ` ${heldByBass.length} stay louder than the target because of their bass (the bass can't be turned down; their lead and drums can't go below the ${BASS_FLOOR}% floor): ${heldByBass.slice(0, 6).map(t => t.name.trim() || "Song " + t.number).join(", ")}${heldByBass.length > 6 ? ` and ${heldByBass.length - 6} more` : ""}.`;
   $("normNote").textContent = text;
 }
 
