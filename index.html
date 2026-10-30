@@ -3327,6 +3327,7 @@ async function normalizeAll(rescalePack) {
     const hi = target * (1 + NORMALIZE_TOLERANCE);
     if (await levelAt(t, BASS_FLOOR) > hi || await run("loudness", t.data, 100, [true, true, false, true]) <= hi) heldAtFloor.push(t);
   }
+  for (const t of heldAtFloor) t.noteCell.textContent = [t.notes, `louder than the target because of its bass: left as it was (the bass can't be turned down, and cutting the lead and drums further would only lose quality)`].filter(Boolean).join("; ");
   const fixable = again.filter(t => !heldAtFloor.includes(t));
   const shown = rescalePack ? crushed : [...new Set([...fixable, ...crushed])];
   const skipped = [...new Set([...shown, ...heldAtFloor])];
