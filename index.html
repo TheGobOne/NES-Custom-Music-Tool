@@ -3319,10 +3319,14 @@ async function normalizeAll(rescalePack) {
   // lead/drums far quieter than the bass (turned down too far by earlier normalizing): can't be repaired
   const ratios = await Promise.all(list.map(t => t.fromPack ? run("leadToBass", t.data) : null));
   const crushed = list.filter((t, i) => ratios[i] !== null && ratios[i] < 0.25);
-  // louder than the target even with the lead and drums at the floor: the bass keeps them there, and rescaling them
-  // would only lose quality. Left alone, and not listed in red.
+  // held by the bass: still louder than the target with the lead and drums at the floor, or the lead and drums alone
+  // are already at the target and only the bass (which can't be turned down) makes the track loud. Cutting them
+  // further would only lose quality, so they are left alone and not listed in red.
   const heldAtFloor = [];
-  for (const t of again) if (await levelAt(t, BASS_FLOOR) > target * (1 + NORMALIZE_TOLERANCE)) heldAtFloor.push(t);
+  for (const t of again) {
+    const hi = target * (1 + NORMALIZE_TOLERANCE);
+    if (await levelAt(t, BASS_FLOOR) > hi || await run("loudness", t.data, 100, [true, true, false, true]) <= hi) heldAtFloor.push(t);
+  }
   const fixable = again.filter(t => !heldAtFloor.includes(t));
   const shown = rescalePack ? crushed : [...new Set([...fixable, ...crushed])];
   const skipped = [...new Set([...shown, ...heldAtFloor])];
