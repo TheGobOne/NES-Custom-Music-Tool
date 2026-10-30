@@ -2273,8 +2273,8 @@ function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); re
 // that's hidden or behind others to one per second or even one per minute, which stalled converting.
 // A message to itself isn't slowed that way.
 const tick = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); r(); }; c.port2.postMessage(0); });
-// Normalize target: a fixed loudness (RMS of the rendered track), a bit under the Faxanadu example's typical level.
-const REFERENCE_LOUDNESS = 0.085;
+// Normalize target: a fixed loudness (RMS of the rendered track), -22 dB at 100%.
+const REFERENCE_LOUDNESS = 0.0794;                // -22 dB: balanced against the games' own sound effects
 const targetLoudness = () => REFERENCE_LOUDNESS * Math.max(30, Math.min(150, +$("target").value || 100)) / 100;
 // Safety range: within ± this share of the target a track counts as within range (set on the page, remembered)
 let NORMALIZE_TOLERANCE = 0.10;
