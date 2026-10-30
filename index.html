@@ -2728,7 +2728,7 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
   order = order.filter(n => n >= 1 && n <= loaded.nsf.songs);
   const nsf = loaded.nsf;
   if (nsf.region !== "NTSC") throw new Error("PAL-only NSFs aren't supported (the export format is NTSC).");
-  const title = loaded.title || nsf.title || fileName.replace(/\.\w+$/, ""), stemName = fileName.replace(/\.\w+$/, "");
+  const title = (loaded.title || nsf.title || "").replace(/\s*[(\[]?\bprototype\b[)\]]?/ig, "").trim() || fileName.replace(/\.\w+$/, ""), stemName = fileName.replace(/\.\w+$/, "");
   if (!re && dup && inList(title)) {
     // already in the list: skipped, unless it comes with a playlist (an .m3u, or an .nsfe's own): then it replaces that game (the playlist they add wins)
     if (((m3u && m3u.length) || (loaded.playlist && loaded.playlist.length)) && dup.swap) re = dup.swap; else { dup.push(title); return; }
