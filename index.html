@@ -2354,24 +2354,28 @@ async function addFiles(files, reimport = false, into = null, only = null) {
   }
   // .m3u playlists: track names and order for the .nsf files they name
   const stem = n => n.replace(/\.[^.]+$/, "").toLowerCase();
-  const playlists = new Map();
+  const playlists = new Map(), listDir = new Map();     // listDir: the folder each playlist was found in
+  const dirOf = f => f.path.slice(0, Math.max(0, f.path.length - f.name.length));
   for (const f of entries.filter(f => /\.m3u8?$/i.test(f.name))) {
     for (const entry of parseM3u(new TextDecoder().decode(f.data))) {
       const key = entry.file.split(/[\\/]/).pop().toLowerCase();
-      if (!playlists.has(key)) playlists.set(key, []);
+      if (!playlists.has(key)) { playlists.set(key, []); listDir.set(key, dirOf(f)); }
       const list = playlists.get(key);
       if (!list.some(x => x.track === entry.track)) list.push(entry);
     }
   }
   const nsfeStems = new Set(entries.filter(f => /\.nsfe$/i.test(f.name)).map(f => stem(f.name)));
   // a playlist named for a different file than the one added (the .nsf was renamed since the playlist was saved):
-  // when exactly one playlist and one .nsf are left over, they belong together
+  // when a folder is left with exactly one such playlist and one .nsf, they belong together
   {
     const nsfs = entries.filter(f => /\.nsf$/i.test(f.name) && !nsfeStems.has(stem(f.name)) && !playlists.has(f.name.toLowerCase()));
     const orphans = [...playlists.keys()].filter(k => !entries.some(f => /\.nsf$/i.test(f.name) && f.name.toLowerCase() === k));
-    if (nsfs.length === 1 && orphans.length === 1 && !nsfeStems.has(stem(orphans[0]))) {
-      playlists.set(nsfs[0].name.toLowerCase(), playlists.get(orphans[0])); playlists.delete(orphans[0]);
-      notices.push(`Used the playlist for ${nsfs[0].name} (it was saved under another file name).`);
+    for (const k of orphans) {
+      const dir = listDir.get(k);
+      const here = nsfs.filter(f => dirOf(f) === dir);
+      if (here.length !== 1 || orphans.filter(o => listDir.get(o) === dir).length !== 1 || nsfeStems.has(stem(k))) continue;
+      playlists.set(here[0].name.toLowerCase(), playlists.get(k)); playlists.delete(k);
+      notices.push(`Used the playlist for ${here[0].name} (it was saved under another file name).`);
     }
   }
   const used = new Set();
