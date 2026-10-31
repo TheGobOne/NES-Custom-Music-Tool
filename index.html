@@ -36,6 +36,8 @@
   button:disabled { opacity: .45; cursor: default; }
   #normalize, #export, #radio:not(.on) { background: var(--accent-main); border-color: var(--accent-main); color: #fff; font-weight: 600; }
   #normalize:hover:not(:disabled), #export:hover:not(:disabled), #radio:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-main) 85%, #000); border-color: color-mix(in srgb, var(--accent-main) 85%, #000); }
+  .exportWarn { color: #c0392b; font-weight: 600; margin-top: 6px; }
+  @media (prefers-color-scheme: dark) { .exportWarn { color: #ff8a80; } }
   button.remove, #clear { color: #c0392b; border-color: color-mix(in srgb, #c0392b 55%, Canvas); background: color-mix(in srgb, #c0392b 7%, Canvas); }
   button.remove:hover:not(:disabled), #clear:hover:not(:disabled) { background: #c0392b; border-color: #c0392b; color: #fff; }
   @media (prefers-color-scheme: dark) { button.remove, #clear { color: #ff8a80; border-color: color-mix(in srgb, #ff8a80 50%, Canvas); background: color-mix(in srgb, #ff8a80 8%, Canvas); } button.remove:hover:not(:disabled), #clear:hover:not(:disabled) { background: #c0392b; border-color: #c0392b; color: #fff; } }
@@ -237,6 +239,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <button id="exportZ2r" disabled hidden>Export master for Z2R</button>
   <button id="exportCombined" disabled hidden title="One file with every track and every tag; likely not accepted by either game">Export combined ⚠</button>
   <span class="note" id="exportnote"></span>
+  <div class="exportWarn" id="exportwarn" hidden></div>
   <div class="hint" id="bothHint" hidden>Both (beta): tag each track for ZORA, Z2R or both. Each export keeps only that game's tags: a track with no tag for the game is left out
   (in the ZORA export, tracks over ZORA's size limit are written switched off). Load the two masters back together to carry the tags on.</div>
   <div class="hint" id="normalHint">Export JSON5 saves everything into one file, one group per game. Export each game separately writes one
@@ -3448,11 +3451,22 @@ function showRescaleList(tracks, crushed = []) {
   for (const t of tracks) t.noteCell.textContent = [t.notes, crushed.includes(t) ? "not normalized: lead/drums far too quiet next to the bass; re-import this game" : "not normalized: louder than the target; re-import this game"].filter(Boolean).join("; ");
 }
 
-// The groups to save, or null (with a note) if a ticked track still has no "Use for".
+// Saving still works with ticked tracks that have no "Use for" tag (the radio doesn't need tags), but the
+// randomizers use them to decide where a track plays, so say so in red next to the export note.
+function warnUntagged(tracks, what) {
+  const box = $("exportwarn");
+  box.hidden = !tracks.length;
+  if (!tracks.length) { box.textContent = ""; return; }
+  const names = tracks.slice(0, 6).map(t => t.name.trim() || "Song " + t.number).join(", ") + (tracks.length > 6 ? ` and ${tracks.length - 6} more` : "");
+  box.textContent = `⚠ ${tracks.length} ticked track(s) have no "Use for" tag: ${names}. ${what} Untagged tracks might cause issues with custom music in the randomizer (they may never play, or play in the wrong places). Tag them first if this pack is for a game.`;
+}
+
+// The groups to save.
 function buildExport(game = null, only = null) {
   const both = mode.key === "both", gs = only ? [only] : groups;
   const noUses = (only ? only.tracks : allTracks()).filter(t => t.data && t.enabled && !t.uses.some(u => activeUses().includes(u)));
-  if (noUses.length) { $("exportnote").textContent = `Tick at least one "Use for" box for: ${noUses.map(t => t.name).join(", ")}.`; return null; }
+  warnUntagged(noUses, both ? "They are left out of the ZORA and Z2R masters."
+    : mode.defaultUses.length ? `They are saved with the default tag (${mode.defaultUses.map(u => useLabel(mode, u)).join(", ")}).` : "They are saved with no tag.");
   if (both) {
     // one game's master: only the tracks tagged for it, with only its tags
     const gm = GAME_MODES[game];
@@ -3505,8 +3519,7 @@ function exportMaster(game) {
 // (each has uses the other doesn't know, and Overworld / Title would merge), so it asks first.
 $("exportCombined").addEventListener("click", () => exportGuard(async () => {
   if (!confirm("Warning: a combined file will most likely NOT work for either ZORA or Z2R (each game has tags the other doesn't know, and the same tag names are merged). Use the two masters for real games. Export the combined file anyway?")) { $("exportnote").textContent = ""; return; }
-  const noUses = allTracks().filter(t => t.data && t.enabled && !t.uses.length);
-  if (noUses.length) { $("exportnote").textContent = `Tick at least one "Use for" box for: ${noUses.map(t => t.name).join(", ")}.`; return; }
+  warnUntagged(allTracks().filter(t => t.data && t.enabled && !t.uses.length), "They are saved with no tag.");
   const out = groups.map(g => ({
     title: g.title, author: g.author, primary_square_chan: 0, streaming_safe: g.safe,
     items: g.tracks.filter(t => t.data).map(t => ({ enabled: t.enabled, title: t.name.trim() || `Song ${t.number}`,
@@ -3523,7 +3536,7 @@ $("exportZ2r").addEventListener("click", () => exportMaster("z2"));
 
 // Run an export, showing any failure next to the buttons instead of failing silently.
 async function exportGuard(fn) {
-  $("exportnote").textContent = "Exporting…";
+  $("exportnote").textContent = "Exporting…"; $("exportwarn").hidden = true;
   try { await fn(); }
   catch (err) { $("exportnote").textContent = `Export failed: ${err.message || err}.` + (FRAMED ? FRAMED_HINT : ""); }
 }
