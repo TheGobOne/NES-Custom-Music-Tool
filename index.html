@@ -212,6 +212,7 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
     <label title="Tracks that loop: the intro, then this many passes of the loop">Plays <select id="radioPasses"><option value="1">once through</option><option value="2">loop twice</option><option value="3">loop 3 times</option></select></label>
     <label title="A track never plays longer than this">Longest <input type="number" id="radioMax" value="180" min="20" max="900" step="10"> sec</label>
     <label title="Skip tracks shorter than this (jingles, sound effects)">Skip under <input type="number" id="radioMin" value="20" min="0" max="120" step="5"> sec</label>
+    <label title="Radio only: play every track at the same loudness (the Target level), by turning each one up or down as it starts. The tracks and the pack are not changed."><input type="checkbox" id="radioEven" checked> Even out loudness</label>
   </div>
   <div class="hint">Plays ticked tracks only, at the volume set in the list, so it sounds the way the game will. Each track fades in and out over 3 seconds. Starting or stopping a track by hand ends the radio.</div>
 </fieldset>
@@ -448,7 +449,8 @@ function parseNsfe(data) {
 }
 
 // GME-style .m3u lines:  file.nsf::NSF,track,title,length,loop,fade  (track is 1-based, "$" = hex).
-// Returns [{file, track, title}] in file order.
+// Returns [{file, track, title, secs, fade}] in file order (secs and fade: the playlist's length and fade in seconds, 0 if not given).
+const m3uSeconds = f => { const m = /^\s*(?:(\d+):)?(?:(\d+):)?(\d+(?:\.\d+)?)\s*$/.exec(f || ""); return m ? (+(m[1] || 0)) * (m[2] === undefined ? 60 : 3600) + (m[2] === undefined ? 0 : +m[2] * 60) + +m[3] : 0; };
 function parseM3u(text) {
   const out = [];
   for (const raw of text.split(/\r?\n/)) {
@@ -460,7 +462,7 @@ function parseM3u(text) {
     const t = fields[0].trim();
     const track = t.startsWith("$") ? parseInt(t.slice(1), 16) : parseInt(t, 10);
     if (!Number.isFinite(track)) continue;
-    out.push({ file: m[1].trim(), track, title: (fields[1] || "").trim() });
+    out.push({ file: m[1].trim(), track, title: (fields[1] || "").trim(), secs: m3uSeconds(fields[2]), fade: m3uSeconds(fields[4]) });
   }
   return out;
 }
@@ -769,7 +771,7 @@ function soundLoop(sig, n, known, noteSig, toneSig) {
 // Run one song. Returns {number, frames, end, loopStart?, channels:{pulse1..noise: notes}, dpcmUsed}.
 // end: "loop" (loops back to loopStart), "silence" (plays once), or "maxDuration" (no loop found
 // within twice the max length: cut at the max length and restarted from the beginning).
-function runSong(nsf, song, maxSeconds) {
+function runSong(nsf, song, maxSeconds, cutSeconds = 0) {
   const apu = new APU(nsf.rate), bus = new Bus(nsf, apu), cpu = new CPU(bus);
   for (let a = 0x4000; a < 0x4014; a++) bus.write(a, 0);
   bus.write(0x4015, 0x0F); bus.write(0x4017, 0x40);
@@ -813,10 +815,14 @@ function runSong(nsf, song, maxSeconds) {
     if (found) { end = "loop"; loopStart = found.start; frames = found.start + found.period; }
     else { frames = maxFrames; loopStart = 0; }          // no loop: cut, then start over
   }
+  // plays once and keeps going well past the length its playlist gives (a held or repeating note after the song is over): cut it there
+  let cutFrom = null;
+  if (end === "silence" && cutSeconds > 0 && frames > Math.round((cutSeconds + 5) * nsf.rate)) { cutFrom = frames; frames = Math.round(cutSeconds * nsf.rate); }
   const channels = {};
   tracks.forEach((t, i) => channels[CH_NAMES[i]] = t.finish(frames));
   const r = { number: song, frames, end, channels, dpcmUsed };
   if (loopStart !== null) r.loopStart = loopStart;
+  if (cutFrom !== null) r.cutFrom = cutFrom;
   return r;
 }
 
@@ -1824,15 +1830,15 @@ function keepBass(data, v, lowest) {
 // ------------------------------------------------------------------ background work
 
 // The slow steps, run in Web Workers (this same file, loaded as a worker) so the page stays smooth.
-function convertTrack(bytes, track, maxSec, previewFrames) {
+function convertTrack(bytes, track, maxSec, previewFrames, cutSec = 0) {
   const nsf = loadFile(bytes).nsf;
-  const song = runSong(nsf, track, maxSec);
+  const song = runSong(nsf, track, maxSec, cutSec);
   const psc = guessMelody(songStates(song).states);
   const c = compileSong(song);
   let frames = song.frames, loopStart = song.loopStart ?? null;
   if (c.data) { const t = tightenLoop(c.data); if (t !== c.data) { c.data = t; const i = ftPlay(t, Math.round(60.0988 * 900)); frames = i.frames; loopStart = i.loopStart; } }
   return { data: c.data, approximated: c.approximated, frames, loopStart,
-           end: song.end, dpcmUsed: !!song.dpcmUsed, psc, endCmd: c.data ? ftPlay(c.data, previewFrames).endCmd : null };
+           end: song.end, cutFrom: song.cutFrom ?? null, dpcmUsed: !!song.dpcmUsed, psc, endCmd: c.data ? ftPlay(c.data, previewFrames).endCmd : null };
 }
 // lead+drums loudness divided by bass loudness (null if there's no bass): well under about 0.25 means
 // the lead and drums were turned down far too much (the bass can't be)
@@ -2779,7 +2785,8 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
   const maxSec = Math.max(10, +$("maxsec").value || 300);
   const fds = nsf.chips.includes("FDS");
   // all tracks go to the workers at once; they're added to the list in order as they finish
-  const pending = order.map(i => run("convertTrack", bytes, i, maxSec, MAX_PREVIEW_FRAMES));
+  const cutOf = new Map((m3u || []).filter(x => x.secs >= 20).map(x => [x.track, x.secs + x.fade]));   // the playlist's length plus its fade
+  const pending = order.map(i => run("convertTrack", bytes, i, maxSec, MAX_PREVIEW_FRAMES, cutOf.get(i) || 0));
   pending.forEach(p => p.catch(() => {}));         // failures are reported per track below
   for (let k = 0; k < order.length; k++) {
     const i = order[k];
@@ -2799,6 +2806,7 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
         t.loop = false;
         notes.push(`its loop is only the last ${((song.frames - song.loopStart) / FRAME_RATE).toFixed(1)} s (a repeating tail): Loop left off, tick it to play that part forever`);
       }
+      if (song.cutFrom) notes.push(`cut at the playlist's length (${fmt(song.frames / FRAME_RATE)}; the NSF keeps playing to ${fmt(song.cutFrom / FRAME_RATE)})`);
       if (song.end === "maxDuration") notes.push("no loop point found: cut at the max length (Loop restarts it from the start)");
       if (c.approximated) notes.push(`${c.approximated} note(s) use a close-match volume`);
       if (song.dpcmUsed) notes.push("drum samples (DPCM) not included");
@@ -3137,6 +3145,9 @@ const exportData = t => {
   return setLoop(scaleVolume(sm ? sm.data : t.data, effectiveVolume(t)), sm ? sm.endCmd : t.endCmd, t.loop);
 };
 
+// The gain that brings a track (already measured at this Vol %) to the target loudness: at most 12 dB down or 9.5 dB up.
+const evenGain = (t, vol) => { const L = t.levels && t.levels.get(vol); return L > 0 ? Math.max(0.25, Math.min(3, targetLoudness() / L)) : 1; };
+
 // Preview plays the exported data itself (at the track's volume), so what you hear is what you export.
 function play(t) {
   stop();
@@ -3155,7 +3166,9 @@ function play(t) {
   src.buffer = t.buffer;
   if (t.loop) { src.loop = true; src.loopStart = t.loop[0]; src.loopEnd = t.loop[1]; }
   const fade = audio.createGain();                  // the radio ramps this up and down; by hand it stays at 1
-  src.connect(fade); fade.connect(previewGain());
+  const lvl = audio.createGain();                   // radio only: evens each track out to the target loudness (the pack is not changed)
+  lvl.gain.value = radioBusy && $("radioEven").checked ? evenGain(t, vol) : 1;
+  src.connect(lvl); lvl.connect(fade); fade.connect(previewGain());
   t.fadeGain = fade; t.startedAt = audio.currentTime;
   src.onended = () => { if (playing === t && t.source === src) { playing = null; t.button.textContent = "▶ Play"; } };
   src.start();
@@ -3198,8 +3211,8 @@ function radioPool() {
     .flatMap(g => g.tracks.filter(t => t.data && t.enabled && t.info && t.info.frames))
     .filter(t => (!use || t.uses.includes(use)) && t.info.frames / FRAME_RATE >= min);
 }
-function radioNext() {
-  if (!radio) return;
+async function radioNext() {
+  if (!radio || radio.picking) return;
   const pool = radioPool();
   if (!pool.length) { endRadio(); setStatus("Radio: no ticked tracks match those settings.", true); return; }
   let t;
@@ -3210,6 +3223,11 @@ function radioNext() {
     const fresh = pool.filter(x => !radio.recent.includes(x)), from = fresh.length ? fresh : pool;
     t = from[Math.floor(Math.random() * from.length)];
     radio.recent.push(t); if (radio.recent.length > Math.min(8, pool.length - 1)) radio.recent.shift();
+  }
+  if ($("radioEven").checked) {                       // measure the track first (remembered after this)
+    radio.picking = true;
+    try { await levelAt(t, effectiveVolume(t)); } finally { if (radio) radio.picking = false; }
+    if (!radio) return;
   }
   radioBusy = true;
   try { play(t); } finally { radioBusy = false; }
@@ -3230,6 +3248,8 @@ function radioNext() {
   }
   radio.timer = setTimeout(radioNext, secs * 1000);
 }
+try { const saved = localStorage.getItem("nesMusicRadioEven"); if (saved !== null) $("radioEven").checked = saved === "1"; } catch (e) {}
+$("radioEven").addEventListener("change", () => { try { localStorage.setItem("nesMusicRadioEven", $("radioEven").checked ? "1" : "0"); } catch (e) {} });
 $("radio").addEventListener("click", () => {
   if (radio) { endRadio(); stop(); return; }
   radio = { recent: [], timer: null };
