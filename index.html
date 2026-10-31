@@ -2231,6 +2231,7 @@ function run(fn, ...args) {
   });
 }
 const AUTO_ON_SECONDS = 15;                       // converted tracks shorter than this start unticked
+const SHORT_LOOP_SECONDS = 3;                     // a loop this short at the end of a longer track is only a repeating tail: Loop starts unticked
 let groups = [], audio = null, playing = null, busy = 0, epoch = 0;
 let mode = GAME_MODES.z1;
 
@@ -2794,6 +2795,10 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
       t.info = { frames: song.frames, loopStart: song.loopStart };
       t.endCmd = song.endCmd; t.loop = t.info.loopStart !== null;
       const notes = [];
+      if (t.loop && (song.frames - song.loopStart) / FRAME_RATE < SHORT_LOOP_SECONDS && song.frames / FRAME_RATE >= AUTO_ON_SECONDS) {
+        t.loop = false;
+        notes.push(`its loop is only the last ${((song.frames - song.loopStart) / FRAME_RATE).toFixed(1)} s (a repeating tail): Loop left off, tick it to play that part forever`);
+      }
       if (song.end === "maxDuration") notes.push("no loop point found: cut at the max length (Loop restarts it from the start)");
       if (c.approximated) notes.push(`${c.approximated} note(s) use a close-match volume`);
       if (song.dpcmUsed) notes.push("drum samples (DPCM) not included");
