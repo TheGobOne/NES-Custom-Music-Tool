@@ -1237,7 +1237,7 @@ const GAME_MODES = {
         defaultUses: ["Dungeon", "LastDungeon"],      // ZORA's own default
         labels: { LastDungeon: "Last dungeon" },
         groupPsc: 0, alwaysEnabled: true,
-        bankRoom: 0x4000 - 0x1800 },                  // ZORA: a module must fit one music bank after the driver
+        bankRoom: 0x2000 },                           // ZORA: a module must fit 8 KB (was 10 KB before the newer ZORA)
   z2: { key: "z2", game: "Zelda 2", randomizer: "Z2R",
         uses: ["Encounter", "Cave", "Boss", "LastBoss", "GreatPalace", "House", "Overworld", "Palace", "PalaceClear", "Title", "Town", "GameComplete", "Credits"],
         defaultUses: [],                              // picked per track
