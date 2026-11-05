@@ -61,8 +61,8 @@
   .lvYellow { background: color-mix(in srgb, #facc15 45%, transparent); }
   .lvOrange { background: color-mix(in srgb, #fb923c 50%, transparent); }
   .lvRed { background: color-mix(in srgb, #ef4444 55%, transparent); }
-  .exportGame.both, body.bothMode .exportGame.single { display: none; }
-  body.bothMode .exportGame.both { display: inline-block; }
+  .exportGame.combined, body.combinedMode .exportGame.single { display: none; }
+  body.combinedMode .exportGame.combined { display: inline-block; }
   #radioNow { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 18px; vertical-align: middle; margin-left: 10px; line-height: 1.2; }
   #radioNow .npLabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   #radioNow .npSong { font-size: 20px; font-weight: 700; color: CanvasText; }
@@ -77,9 +77,10 @@
   button.big:hover { transform: translateY(-3px); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 34%, transparent), color-mix(in srgb, var(--accent) 12%, transparent)); }
   button.big:active { transform: translateY(0); box-shadow: none; }
   button.big .note { display: inline-block; margin-top: 6px; padding: 1px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
-  button.big.z1 { --accent: #2f9e44; } button.big.z2 { --accent: #3b6fd4; } button.big.both { --accent: #8a4fd0; }
+  button.big.z1 { --accent: #2f9e44; } button.big.z2 { --accent: #3b6fd4; } button.big.dw { --accent: #c2410c; } button.big.combined { --accent: #8a4fd0; }
   .uses .usesrow { padding: 3px 6px; border-left: 4px solid var(--rc); background: color-mix(in srgb, var(--rc) 10%, transparent); }
-  .uses .usesrow + .usesrow { margin-top: 4px; } .uses .usesrow.z1 { --rc: #2f9e44; } .uses .usesrow.z2 { --rc: #3b6fd4; }
+  .uses .usesrow + .usesrow { margin-top: 4px; } .uses .usesrow.z1 { --rc: #2f9e44; } .uses .usesrow.z2 { --rc: #3b6fd4; } .uses .usesrow.dw { --rc: #c2410c; }
+  #roomcheck { white-space: pre-line; }
   .uses .usesrow b { font-size: 12px; margin-right: 4px; }
   #landing p { margin-bottom: 14px; }
   a.bugbanner { display: block; margin: 0 0 20px; padding: 14px 18px; border: 2px solid #d97706; border-radius: 8px; background: #fef3c7; color: #7c2d12; font-size: 22px; font-weight: 700; text-align: center; text-decoration: none; }
@@ -123,11 +124,11 @@ so the Export buttons can't save anything here. Download "NES Custom Music Tool.
 
 <section id="landing">
   <a class="bugbanner" href="https://github.com/TheGobOne/NES-Custom-Music-Tool/issues" target="_blank" rel="noopener">🐞 Report bugs as Issues on GitHub</a>
-  <p class="intro">Turns NES music (NSF / NSFe files) into a music pack for a Zelda randomizer.
+  <p class="intro">Turns NES music (NSF / NSFe files) into a music pack for a Zelda or Dragon Warrior randomizer.
   Everything runs in this page; nothing is uploaded anywhere.</p>
   <details class="howto" open><summary>How to use</summary>
     <ol>
-      <li><b>Pick the game</b> your pack is for: Zelda 1 (ZORA) or Zelda 2 (Z2R).</li>
+      <li><b>Pick the game</b> your pack is for: Zelda 1 (ZORA), Zelda 2 (Z2R), Dragon Warrior (DWR) or Combined for all three.</li>
       <li><b>Add your music.</b> Drop NSF or NSFe files (or a zip / 7z / folder of them), or an existing .json5 pack onto the page.
         For a plain .nsf, add its .m3u playlist too so the tracks get names and the sound effects are left out. An .nsfe has them built in.</li>
       <li><b>Check the tracks.</b> Play them, tick the ones you want, and tag each with where it can play ("Use for").
@@ -141,7 +142,8 @@ so the Export buttons can't save anything here. Download "NES Custom Music Tool.
   <p>Which game is the music pack for?</p>
   <button class="big z1" id="pick-z1">Zelda 1<br><span class="note">ZORA</span></button>
   <button class="big z2" id="pick-z2">Zelda 2<br><span class="note">Z2R</span></button>
-  <button class="big both" id="pick-both">Both (BETA)<br><span class="note">ZORA + Z2R</span></button>
+  <button class="big dw" id="pick-dw">Dragon Warrior<br><span class="note">DWR</span></button>
+  <button class="big combined" id="pick-combined">Combined<br><span class="note">ZORA + Z2R + DWR</span></button>
   <p class="note" id="landingNote"></p>
 </section>
 
@@ -237,11 +239,12 @@ Everything runs in this page; nothing is uploaded anywhere. <button id="changeGa
   <button id="exportEach" disabled>Export each game separately</button>
   <button id="exportZora" disabled hidden>Export master for ZORA</button>
   <button id="exportZ2r" disabled hidden>Export master for Z2R</button>
-  <button id="exportCombined" disabled hidden title="One file with every track and every tag; likely not accepted by either game">Export combined ⚠</button>
+  <button id="exportDwr" disabled hidden>Export master for DWR</button>
+  <button id="exportCombined" disabled hidden title="One file with every track and every tag; likely not accepted by any game">Export combined ⚠</button>
   <span class="note" id="exportnote"></span>
   <div class="exportWarn" id="exportwarn" hidden></div>
-  <div class="hint" id="bothHint" hidden>Both (beta): tag each track for ZORA, Z2R or both. Each export keeps only that game's tags: a track with no tag for the game is left out
-  (in the ZORA export, tracks over ZORA's size limit are written switched off). Load the two masters back together to carry the tags on.</div>
+  <div class="hint" id="combinedHint" hidden>Combined: tag each track for ZORA, Z2R, DWR or any mix. Each export keeps only that game's tags: a track with no tag for the game is left out
+  (tracks too big for that game are written switched off). Load the masters back together to carry the tags on.</div>
   <div class="hint" id="normalHint">Export JSON5 saves everything into one file, one group per game. Export each game separately writes one
   file per game into a folder you pick (for example the randomizer's Music folder; files with the same name are replaced),
   or downloads them as a zip in browsers that can't write to a folder.</div>
@@ -1228,7 +1231,7 @@ function toPlayerJson5(groups, mode = "z1") {
 
 // ------------------------------------------------------------------ ZORA settings
 
-// The two randomizers a pack can be for. Both read the same file layout and module data; they
+// The randomizers a pack can be for. All read the same file layout and module data; they
 // differ in the "uses" names, the default uses, the group's primary_square_chan, and whether
 // items carry "enabled" (Zelda 2 packs only mark disabled tracks).
 const GAME_MODES = {
@@ -1246,20 +1249,38 @@ const GAME_MODES = {
         bankRoom: 0x2000,                             // Z2R (Music.cs): 8 KB banks, modules at $A000-$BFFF
         banks: 12,                                    // ROM.FreeRomBanks: banks $10-$1B
         songsPerSeed: 27 },                           // Music.cs numUsageSongs: 1+1+4+4+4+6+1+1+1+1+1+1+1
+  dw: { key: "dw", game: "Dragon Warrior", randomizer: "DWR",
+        uses: ["Title", "Castle", "Town", "Overworld", "Dungeon", "Cave", "Battle", "LastBattle",
+               "DragonlordRoom", "Hauksness", "OldManCave", "Floor1", "Floor2", "Floor3", "Floor4", "Floor5", "Floor6", "Floor7",
+               "Credits", "Ending", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"],
+        defaultUses: [],                              // picked per track
+        labels: { LastBattle: "Last battle", DragonlordRoom: "Dragonlord room", OldManCave: "Old man cave",
+                  Floor1: "Floor 1", Floor2: "Floor 2", Floor3: "Floor 3", Floor4: "Floor 4", Floor5: "Floor 5", Floor6: "Floor 6", Floor7: "Floor 7",
+                  SilverHarp: "Silver harp", FairyFlute: "Fairy flute", RainbowBridge: "Rainbow bridge", LevelUp: "Level up" },
+        groupPsc: 0, alwaysEnabled: true,
+        bankRoom: 0x2324,                             // custom_music.c: 2 banks, modules at FT_SONGS ($9CDC) to $BFFF
+        banks: 2,
+        songsPerSeed: 24,                             // custom_music.c MAX_PLACED
+        skipsWhenFull: true,                          // songs that don't fit are skipped; the seed still builds
+        minSize: 256,                                 // custom_music.c MIN_SONG_SIZE: smaller tracks need an event tag
+        eventUses: ["DragonlordRoom", "Hauksness", "OldManCave", "Floor1", "Floor2", "Floor3", "Floor4", "Floor5", "Floor6", "Floor7",
+                    "Credits", "Ending", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"] },
 };
-// "Both" (beta): one list tagged for both games at once. A tag is "z1:Overworld" / "z2:Overworld";
+// The games a Combined list tags for, and the short name of each.
+const COMBINED_GAMES = ["z1", "z2", "dw"];
+const GAME_NAMES = { z1: "ZORA", z2: "Z2R", dw: "DWR" };
+// Combined: one list tagged for all the games at once. A tag is "z1:Overworld" / "dw:Overworld";
 // an export for one game keeps only that game's tags (see exportTags).
-GAME_MODES.both = { key: "both", game: "Zelda 1 + Zelda 2", randomizer: "ZORA and Z2R",
-  uses: [...GAME_MODES.z1.uses.map(u => "z1:" + u), ...GAME_MODES.z2.uses.map(u => "z2:" + u)],
+GAME_MODES.combined = { key: "combined", game: "Zelda 1 + Zelda 2 + Dragon Warrior", randomizer: "ZORA, Z2R and DWR",
+  uses: COMBINED_GAMES.flatMap(k => GAME_MODES[k].uses.map(u => k + ":" + u)),
   defaultUses: [], labels: {}, groupPsc: 0, alwaysEnabled: false };
-const BOTH_NAMES = { z1: "ZORA", z2: "Z2R" };
-// A tag's text for lists: plain in one game's mode, "ZORA: Overworld" in Both.
+// A tag's text for lists: plain in one game's mode, "ZORA: Overworld" in Combined.
 function useLabel(mode, u) {
-  const m = u.match(/^(z[12]):(.*)$/);
+  const m = u.match(/^(z1|z2|dw):(.*)$/);
   if (!m) return mode.labels[u] || u;
-  return `${BOTH_NAMES[m[1]]}: ${GAME_MODES[m[1]].labels[m[2]] || m[2]}`;
+  return `${GAME_NAMES[m[1]]}: ${GAME_MODES[m[1]].labels[m[2]] || m[2]}`;
 }
-// The tags of one game in a Both list, without the prefix ("z1:Dungeon" -> "Dungeon").
+// The tags of one game in a Combined list, without the prefix ("z1:Dungeon" -> "Dungeon").
 const exportTags = (uses, game) => uses.filter(u => u.startsWith(game + ":")).map(u => u.slice(3));
 
 // Would these module sizes fit Z2R's music banks? Packs them the way FtRandoLib's
@@ -1276,14 +1297,24 @@ function fitsBanks(sizes, banks, bankSize) {
   return left.length === 0;
 }
 
-// Which game a loaded pack is for, from its tracks' uses: "z1", "z2", or null (no game-specific uses).
-function detectMode(doc) {
+// Which game a loaded pack is for, from its tracks' uses: a game key, or null (no way to tell).
+// Many tags are shared, so a pack that fits the game being worked on stays with it. Otherwise shared
+// tags alone mean a Zelda pack, since those packs came first.
+function detectMode(doc, current = null) {
   const items = [...((doc && doc.single) || []), ...((doc && doc.groups) || []).flatMap(g => g.items || [])];
   const uses = new Set(items.flatMap(it => [...(it.uses || []), ...(it.songs || []).flatMap(s => s.uses || [])]).map(u => String(u).toLowerCase()));
-  const all = m => GAME_MODES[m].uses;
-  const only = (a, b) => all(a).filter(u => !all(b).includes(u)).some(u => uses.has(u.toLowerCase()));
-  const z1 = only("z1", "z2"), z2 = only("z2", "z1");
-  return z1 && !z2 ? "z1" : z2 && !z1 ? "z2" : null;
+  const knows = (m, u) => GAME_MODES[m].uses.some(x => x.toLowerCase() === u);
+  const known = [...uses].filter(u => COMBINED_GAMES.some(m => knows(m, u)));
+  if (!known.length) return null;
+  const fits = COMBINED_GAMES.filter(m => known.every(u => knows(m, u)));
+  if (!fits.length) {       // tags of several games: a tag only one game has decides
+    const own = COMBINED_GAMES.filter(m => known.some(u => knows(m, u) && COMBINED_GAMES.every(o => o === m || !knows(o, u))));
+    return own.length === 1 ? own[0] : null;
+  }
+  if (fits.length === 1) return fits[0];
+  if (fits.includes(current)) return current;
+  const zelda = fits.filter(m => m !== "dw");
+  return zelda.length === 1 ? zelda[0] : null;
 }
 
 // Which pulse channel carries the melody (0 or 1): the one that plays higher on average.
@@ -2256,15 +2287,16 @@ function setMode(key) {
   document.querySelectorAll(".mGame").forEach(e => e.textContent = mode.game);
   document.querySelectorAll(".mRando").forEach(e => e.textContent = mode.randomizer);
   $("landing").hidden = true; $("app").hidden = false;
-  const both = key === "both";
-  $("export").hidden = $("exportEach").hidden = both;
-  document.body.classList.toggle("bothMode", both);
-  $("exportZora").hidden = $("exportZ2r").hidden = $("exportCombined").hidden = $("bothHint").hidden = !both;
-  $("normalHint").hidden = both;
+  const combined = key === "combined";
+  $("export").hidden = $("exportEach").hidden = combined;
+  document.body.classList.toggle("combinedMode", combined);
+  $("exportZora").hidden = $("exportZ2r").hidden = $("exportDwr").hidden = $("exportCombined").hidden = $("combinedHint").hidden = !combined;
+  $("normalHint").hidden = combined;
 }
 $("pick-z1").addEventListener("click", () => setMode("z1"));
 $("pick-z2").addEventListener("click", () => setMode("z2"));
-$("pick-both").addEventListener("click", () => setMode("both"));
+$("pick-dw").addEventListener("click", () => setMode("dw"));
+$("pick-combined").addEventListener("click", () => setMode("combined"));
 $("changeGame").addEventListener("click", () => {
   if (groups.length && !confirm("Change game? This clears the tracks loaded now (export first if you want to keep them).")) return;
   $("clear").click();
@@ -2295,7 +2327,7 @@ function refreshButtons() {
   const any = allTracks().some(t => t.data);
   $("meta").hidden = $("tracks").hidden = $("exportbox").hidden = $("radiobox").hidden = !groups.length;
   fitNames();
-  $("export").disabled = $("exportEach").disabled = $("exportZora").disabled = $("exportZ2r").disabled = $("exportCombined").disabled = $("normalize").disabled = busy > 0 || !any;
+  $("export").disabled = $("exportEach").disabled = $("exportZora").disabled = $("exportZ2r").disabled = $("exportDwr").disabled = $("exportCombined").disabled = $("normalize").disabled = busy > 0 || !any;
   updateRoomCheck();
 }
 
@@ -2470,7 +2502,7 @@ document.addEventListener("drop", async e => {
   if (items.length) for (const it of items) await walk(it, files);
   else files = [...e.dataTransfer.files];
   if (!files.length) return;
-  if ($("app").hidden) { $("landingNote").textContent = "Pick Zelda 1 or Zelda 2 first, then add your files."; return; }
+  if ($("app").hidden) { $("landingNote").textContent = "Pick a game first, then add your files."; return; }
   addFiles(files);
 });
 
@@ -2491,8 +2523,9 @@ function newGroup(title, author, safe, collapsed = false) {
           <input type="file" accept=".m3u,.m3u8"></label>
         <button class="saveM3u" title="Save this game's track numbers and names as an .m3u playlist. Add it with the game's NSF when you re-import, so the names and tracks match.">Save playlist (.m3u)</button>
         <button class="exportGame single" title="Export only this game as its own .json5 file">Export this game (.json5)</button>
-        <button class="exportGame both" data-game="z1" title="Export only this game's ZORA tracks as a .json5 file">Export ZORA</button>
-        <button class="exportGame both" data-game="z2" title="Export only this game's Z2R tracks as a .json5 file">Export Z2R</button>
+        <button class="exportGame combined" data-game="z1" title="Export only this game's ZORA tracks as a .json5 file">Export ZORA</button>
+        <button class="exportGame combined" data-game="z2" title="Export only this game's Z2R tracks as a .json5 file">Export Z2R</button>
+        <button class="exportGame combined" data-game="dw" title="Export only this game's DWR tracks as a .json5 file">Export DWR</button>
         <button class="remove" title="Remove this game and its tracks from the list">✕ Remove game</button>
       </div>
     </div></div></td>`;
@@ -2538,12 +2571,12 @@ function newGroup(title, author, safe, collapsed = false) {
     renderGameList();
   });
   tr.querySelectorAll(".exportGame").forEach(btn => btn.addEventListener("click", () => exportGuard(async () => {
-    const game = mode.key === "both" ? btn.dataset.game : null;
+    const game = mode.key === "combined" ? btn.dataset.game : null;
     const out = buildExport(game, g);
     if (!out) return;
-    if (!out.length) { $("exportnote").textContent = `No track of ${g.title.trim() || "this game"} is tagged for ${BOTH_NAMES[game]} yet.`; return; }
+    if (!out.length) { $("exportnote").textContent = `No track of ${g.title.trim() || "this game"} is tagged for ${GAME_NAMES[game]} yet.`; return; }
     const text = toPlayerJson5(out, game || mode.key);
-    const name = safeName(g.title) + (game ? ` (${BOTH_NAMES[game]})` : "") + ".json5";
+    const name = safeName(g.title) + (game ? ` (${GAME_NAMES[game]})` : "") + ".json5";
     const saved = await saveFile(text, name);
     if (!saved) { cancelled(() => download(new Blob([text], { type: "application/json" }), name)); return; }
     const items = out[0].items;
@@ -2632,21 +2665,21 @@ async function reimportFromPack(bytes, fileName, re, myEpoch) {
 
 async function openJson5(bytes, fileName, myEpoch, dup = null) {
   const doc = parseJson5(new TextDecoder().decode(bytes));
-  const detected = detectMode(doc);
+  const detected = detectMode(doc, mode.key);
   let notice = "";
-  if (detected && detected !== mode.key && mode.key !== "both") {
+  if (detected && detected !== mode.key && mode.key !== "combined") {
     const other = GAME_MODES[detected];
     if (groups.length) throw new Error(`it's a ${other.game} (${other.randomizer}) pack, and ${mode.game} tracks are loaded. Use Change game to switch (that clears what's loaded)`);
     setMode(detected);
     notice = `Switched to ${other.game} mode: ${fileName} is a ${other.game} (${other.randomizer}) pack.`;
   }
-  const packGame = mode.key === "both" ? detected : null;     // which game a pack's tags belong to (null: unclear, both)
+  const packGame = mode.key === "combined" ? detected : null; // which game a pack's tags belong to (null: unclear, all)
   const list = [...((doc && doc.groups) || [])];
   if (doc && Array.isArray(doc.single) && doc.single.length) list.unshift({ title: fileName.replace(/\.\w+$/, ""), items: doc.single });
   if (!list.length || !list.every(g => Array.isArray(g.items))) throw new Error("not in the music-pack format (no groups → items)");
   for (const group of list) {
     const gTitle = group.title || fileName.replace(/\.\w+$/, "");
-    if (dup && mode.key === "both" && packGame && mergeTags(gTitle, group, packGame)) continue;   // tags added to the game already listed
+    if (dup && mode.key === "combined" && packGame && mergeTags(gTitle, group, packGame)) continue;   // tags added to the game already listed
     if (dup && inList(gTitle)) { dup.push(gTitle); continue; }       // already in the list
     const g = newGroup(gTitle, group.author || "", group.streaming_safe ?? false, true);
     for (let i = 0; i < group.items.length; i++) {
@@ -2863,15 +2896,15 @@ async function openRom(bytes, fileName, myEpoch, m3u, re = null, dup = null) {
 }
 
 function normalizeUses(list, packGame = null) {
-  if (mode.key === "both") {
-    const games = packGame ? [packGame] : ["z1", "z2"];
+  if (mode.key === "combined") {
+    const games = packGame ? [packGame] : COMBINED_GAMES;
     if (!Array.isArray(list) || !list.length) return [];
     return mode.uses.filter(u => games.includes(u.slice(0, 2)) && list.some(x => String(x).toLowerCase() === u.slice(3).toLowerCase()));
   }
   if (!Array.isArray(list) || !list.length) return [];       // untagged stays untagged
   return mode.uses.filter(u => list.some(x => String(x).toLowerCase() === u.toLowerCase()));
 }
-// Both: a pack of one game loaded for a game that's already listed adds its tags to the matching
+// Combined: a pack of one game loaded for a game that's already listed adds its tags to the matching
 // tracks (matched by name); tracks it has that the list doesn't are added after.
 function mergeTags(title, group, game) {
   const g = groups.find(x => looseTitle(x.title) === looseTitle(title) && looseTitle(title) !== "");
@@ -2889,11 +2922,11 @@ function mergeTags(title, group, game) {
   return true;
 }
 
-// ZORA places each track inside one music bank; a bigger one cannot be imported. (Zelda 2: no known limit.)
+// A randomizer places each track inside one music bank; a bigger one cannot be imported.
 function sizeCheck(t) {
   if (mode.bankRoom && t.data && t.data.length > mode.bankRoom) {
     t.enabled = false;
-    t.notes = (t.notes ? t.notes + "; " : "") + `too big for ${mode.randomizer} (over ${(mode.bankRoom / 1024).toFixed(0)} KB) — try a shorter max length`;
+    t.notes = (t.notes ? t.notes + "; " : "") + `too big for ${mode.randomizer} (over ${(mode.bankRoom / 1024).toFixed(mode.bankRoom % 1024 ? 1 : 0)} KB) — try a shorter max length`;
   }
 }
 
@@ -3023,8 +3056,8 @@ function addRow(g, t) {
 // The "Use for" checkboxes of a track (the ones shown now; a hidden use it has is kept).
 function fillUses(t) {
   const box = u => `<label><input type="checkbox" data-use="${u}" ${t.uses.includes(u) ? "checked" : ""}>${(u.includes(":") ? GAME_MODES[u.slice(0, 2)].labels[u.slice(3)] || u.slice(3) : mode.labels[u]) || u}</label>`;
-  t.usesCell.innerHTML = mode.key === "both"
-    ? ["z1", "z2"].map(k => `<div class="usesrow ${k}"><b>${BOTH_NAMES[k]}</b>${activeUses().filter(u => u.startsWith(k)).map(box).join("")}</div>`).join("")
+  t.usesCell.innerHTML = mode.key === "combined"
+    ? COMBINED_GAMES.map(k => `<div class="usesrow ${k}"><b>${GAME_NAMES[k]}</b>${activeUses().filter(u => u.startsWith(k + ":")).map(box).join("")}</div>`).join("")
     : activeUses().map(box).join("");
   t.usesCell.querySelectorAll("[data-use]").forEach(box => box.addEventListener("change", () => {
     t.uses = t.uses.filter(u => u !== box.dataset.use);
@@ -3088,7 +3121,8 @@ function updateCoverage() {
   sum.textContent = ""; note.textContent = "";
   if (missing.length) {
     const b = document.createElement("span"); b.className = "missing";
-    b.textContent = `No tracks yet for ${missing.length} of ${uses.length}: ${missing.map(label).join(", ")}.`;
+    b.textContent = `No tracks yet for ${missing.length} of ${uses.length}: ${missing.map(label).join(", ")}.`
+      + (mode.key === "dw" || mode.key === "combined" ? " A DWR use with no track keeps the game's own music." : "");
     sum.append(b);
     note.append(b.cloneNode(true));
   } else {
@@ -3116,23 +3150,33 @@ function updateCoverage() {
   }
 }
 
-// Zelda 2: Z2R places up to 27 songs per seed into 12 banks of 8 KB. Check the worst case (the
-// largest ticked tracks) the way its importer packs them.
-function updateRoomCheck() {
-  updateCoverage();
-  const box = $("roomcheck");
-  const cfg = mode.key === "both" ? GAME_MODES.z2 : mode;       // Both: the Z2R-tagged tracks
-  if (!cfg.songsPerSeed) { box.textContent = ""; return; }
-  const sizes = allTracks().filter(t => t.data && t.enabled && (mode.key === "both" ? exportTags(t.uses, "z2") : t.uses).length).map(t => t.data.length)
-    .sort((a, b) => b - a).slice(0, cfg.songsPerSeed);
-  if (!sizes.length) { box.textContent = ""; return; }
+// Z2R places up to 27 songs per seed into 12 banks of 8 KB. Check the worst case (the largest
+// ticked tracks) the way its importer packs them. DWR skips what doesn't fit, so it only reports.
+function roomCheckText(cfg, tracks) {
   const kb = n => (n / 1024).toFixed(1) + " KB";
+  if (!tracks.length) return "";
+  if (cfg.skipsWhenFull) {
+    const total = tracks.reduce((a, t) => a + t.data.length, 0);
+    const short = tracks.filter(t => t.data.length < cfg.minSize && !t.tags.some(u => cfg.eventUses.includes(u))).length;
+    return `DWR room check: ${tracks.length} ticked tracks (${kb(total)}). A seed holds up to ${cfg.songsPerSeed} songs in ${cfg.banks} banks of ${kb(cfg.bankRoom)}. `
+      + `Songs that don't fit are skipped, and that use keeps another song or the game's own music.`
+      + (short ? ` ⚠ ${short} track(s) under ${cfg.minSize} bytes won't be used unless tagged for an event or floor.` : "");
+  }
+  const sizes = tracks.map(t => t.data.length).sort((a, b) => b - a).slice(0, cfg.songsPerSeed);
   const total = sizes.reduce((a, b) => a + b, 0);
-  box.textContent = fitsBanks(sizes, cfg.banks, cfg.bankRoom)
+  return fitsBanks(sizes, cfg.banks, cfg.bankRoom)
     ? `Z2R room check ✓: even the ${sizes.length} largest ticked tracks (${kb(total)}) fit its ${cfg.banks} music banks of 8 KB.`
     : `Z2R room check ⚠: Z2R places up to ${cfg.songsPerSeed} songs per seed into ${cfg.banks} banks of 8 KB. Your ${sizes.length} largest ticked tracks `
       + `(${kb(total)}, biggest ${kb(sizes[0])}) don't fit, so seeds that pick them fail with "RomFull". Untick some big tracks, `
       + `or lower Max length and re-add their games. Smaller tracks pack better (three 2.7 KB tracks fit one bank).`;
+}
+function updateRoomCheck() {
+  updateCoverage();
+  const combined = mode.key === "combined";
+  const ticked = allTracks().filter(t => t.data && t.enabled);
+  $("roomcheck").textContent = (combined ? COMBINED_GAMES : [mode.key]).filter(k => GAME_MODES[k].songsPerSeed).map(k =>
+    roomCheckText(GAME_MODES[k], ticked.map(t => ({ data: t.data, tags: combined ? exportTags(t.uses, k) : t.uses })).filter(t => t.tags.length)))
+    .filter(Boolean).join("\n");
 }
 
 function showCount(g) {
@@ -3463,11 +3507,11 @@ function warnUntagged(tracks, what) {
 
 // The groups to save.
 function buildExport(game = null, only = null) {
-  const both = mode.key === "both", gs = only ? [only] : groups;
+  const combined = mode.key === "combined", gs = only ? [only] : groups;
   const noUses = (only ? only.tracks : allTracks()).filter(t => t.data && t.enabled && !t.uses.some(u => activeUses().includes(u)));
-  warnUntagged(noUses, both ? "They are left out of the ZORA and Z2R masters."
+  warnUntagged(noUses, combined ? "They are left out of every game's master."
     : mode.defaultUses.length ? `They are saved with the default tag (${mode.defaultUses.map(u => useLabel(mode, u)).join(", ")}).` : "They are saved with no tag.");
-  if (both) {
+  if (combined) {
     // one game's master: only the tracks tagged for it, with only its tags
     const gm = GAME_MODES[game];
     return gs.map(g => ({
@@ -3500,25 +3544,25 @@ $("export").addEventListener("click", () => exportGuard(async () => {
     + (FRAMED ? FRAMED_HINT : "");
 }));
 
-// Both: the master for one game (only the tracks tagged for it).
+// Combined: the master for one game (only the tracks tagged for it).
 function exportMaster(game) {
   return exportGuard(async () => {
     const out = buildExport(game);
     if (!out) return;
-    if (!out.length) { $("exportnote").textContent = `No track is tagged for ${BOTH_NAMES[game]} yet.`; return; }
+    if (!out.length) { $("exportnote").textContent = `No track is tagged for ${GAME_NAMES[game]} yet.`; return; }
     const text = toPlayerJson5(out, game);
-    const name = `${BOTH_NAMES[game]} master.json5`;
+    const name = `${GAME_NAMES[game]} master.json5`;
     const saved = await saveFile(text, name);
     if (!saved) { cancelled(() => download(new Blob([text], { type: "application/json" }), name)); return; }
     const items = out.flatMap(g => g.items);
-    $("exportnote").textContent = `Saved ${saved}: ${items.length} tracks tagged for ${BOTH_NAMES[game]} in ${out.length} group(s), ${items.filter(i => i.enabled).length} on.`
+    $("exportnote").textContent = `Saved ${saved}: ${items.length} tracks tagged for ${GAME_NAMES[game]} in ${out.length} group(s), ${items.filter(i => i.enabled).length} on.`
       + (FRAMED ? FRAMED_HINT : "");
   });
 }
-// One file with every track and the tags of both games together. Neither game is likely to accept it
-// (each has uses the other doesn't know, and Overworld / Title would merge), so it asks first.
+// One file with every track and the tags of all the games together. No game is likely to accept it
+// (each has uses the others don't know, and Overworld / Title would merge), so it asks first.
 $("exportCombined").addEventListener("click", () => exportGuard(async () => {
-  if (!confirm("Warning: a combined file will most likely NOT work for either ZORA or Z2R (each game has tags the other doesn't know, and the same tag names are merged). Use the two masters for real games. Export the combined file anyway?")) { $("exportnote").textContent = ""; return; }
+  if (!confirm("Warning: a combined file will most likely NOT work for ZORA, Z2R or DWR (each game has tags the others don't know, and the same tag names are merged). Use the masters for real games. Export the combined file anyway?")) { $("exportnote").textContent = ""; return; }
   warnUntagged(allTracks().filter(t => t.data && t.enabled && !t.uses.length), "They are saved with no tag.");
   const out = groups.map(g => ({
     title: g.title, author: g.author, primary_square_chan: 0, streaming_safe: g.safe,
@@ -3529,10 +3573,11 @@ $("exportCombined").addEventListener("click", () => exportGuard(async () => {
   const name = "combined master (may not work).json5";
   const saved = await saveFile(text, name);
   if (!saved) { cancelled(() => download(new Blob([text], { type: "application/json" }), name)); return; }
-  $("exportnote").textContent = `Saved ${saved}: ${out.flatMap(g => g.items).length} tracks. ⚠ This combined file will likely not work for either game.` + (FRAMED ? FRAMED_HINT : "");
+  $("exportnote").textContent = `Saved ${saved}: ${out.flatMap(g => g.items).length} tracks. ⚠ This combined file will likely not work for any game.` + (FRAMED ? FRAMED_HINT : "");
 }));
 $("exportZora").addEventListener("click", () => exportMaster("z1"));
 $("exportZ2r").addEventListener("click", () => exportMaster("z2"));
+$("exportDwr").addEventListener("click", () => exportMaster("dw"));
 
 // Run an export, showing any failure next to the buttons instead of failing silently.
 async function exportGuard(fn) {
@@ -3651,7 +3696,7 @@ refreshButtons();
 </script>
 <footer class="disclaimer">
   <b>Disclaimer:</b> NES Custom Music Tool is an unofficial fan-made tool. It is not affiliated with or endorsed by Nintendo, Capcom, Konami, Square Enix,
-  or the ZORA and Z2R randomizer projects. Game and music names belong to their owners. No ROMs, music or game files are included here: you supply your own,
+  or the ZORA, Z2R and DWR randomizer projects. Game and music names belong to their owners. No ROMs, music or game files are included here: you supply your own,
   and you are responsible for having the right to use them. Provided as is, with no warranty; conversions may be imperfect.
   Everything runs in your browser and nothing is uploaded.
 </footer>
