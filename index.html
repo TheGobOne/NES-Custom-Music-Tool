@@ -1250,21 +1250,20 @@ const GAME_MODES = {
         banks: 12,                                    // ROM.FreeRomBanks: banks $10-$1B
         songsPerSeed: 27 },                           // Music.cs numUsageSongs: 1+1+4+4+4+6+1+1+1+1+1+1+1
   dw: { key: "dw", game: "Dragon Warrior", randomizer: "DWR",
-        uses: ["Title", "Castle", "Town", "Overworld", "Dungeon", "Cave", "Battle", "LastBattle",
-               "DragonlordRoom", "Hauksness", "OldManCave", "Floor1", "Floor2", "Floor3", "Floor4", "Floor5", "Floor6", "Floor7",
-               "Credits", "Ending", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"],
+        uses: ["Title", "Tantegel", "Town", "Overworld", "Charlock", "Cave", "Encounter", "Dragonlord",
+               "CharlockFinalFloor", "Hauksness",
+               "OriginalCredits", "StatScroll", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"],
         defaultUses: [],                              // picked per track
-        labels: { Ending: "Original credits", Credits: "Stat scroll", LastBattle: "Last battle", DragonlordRoom: "Dragonlord room", OldManCave: "Old man cave",
-                  Floor1: "Floor 1", Floor2: "Floor 2", Floor3: "Floor 3", Floor4: "Floor 4", Floor5: "Floor 5", Floor6: "Floor 6", Floor7: "Floor 7",
+        labels: { OriginalCredits: "Original credits", StatScroll: "Stat scroll", CharlockFinalFloor: "Charlock final floor",
                   SilverHarp: "Silver harp", FairyFlute: "Fairy flute", RainbowBridge: "Rainbow bridge", LevelUp: "Level up" },
         groupPsc: 0, alwaysEnabled: true,
-        bankRoom: 0x2324,                             // custom_music.c: 2 banks, modules at FT_SONGS ($9CDC) to $BFFF
+        bankRoom: 0x2242,                             // custom_music.c: 2 banks, modules at FT_SONGS ($9DBE) to $BFFF
         banks: 2,
         songsPerSeed: 24,                             // custom_music.c MAX_PLACED
         skipsWhenFull: true,                          // songs that don't fit are skipped; the seed still builds
         minSize: 256,                                 // custom_music.c MIN_SONG_SIZE: smaller tracks need an event tag
-        eventUses: ["DragonlordRoom", "Hauksness", "OldManCave", "Floor1", "Floor2", "Floor3", "Floor4", "Floor5", "Floor6", "Floor7",
-                    "Credits", "Ending", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"] },
+        eventUses: ["CharlockFinalFloor", "Hauksness",
+                    "OriginalCredits", "StatScroll", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"] },
 };
 // The games a Combined list tags for, and the short name of each.
 const COMBINED_GAMES = ["z1", "z2", "dw"];
@@ -2310,7 +2309,8 @@ const FRAMED_HINT = " If no file appeared: this page is open inside a preview wi
   + "Download \"NES Custom Music Tool.html\" and open it in your browser.";
 
 function setStatus(text, error) { $("status").textContent = text; $("status").className = error ? "error" : ""; }
-function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${m}:${String(s).padStart(2, "0")}`; }
+// m:ss.cc, to the hundredth of a second.
+function fmt(sec) { const c = Math.round(sec * 100), m = Math.floor(c / 6000), s = (c % 6000) / 100; return `${m}:${s.toFixed(2).padStart(5, "0")}`; }
 // Let the page update between steps of long work. Not setTimeout: browsers slow timers in a window
 // that's hidden or behind others to one per second or even one per minute, which stalled converting.
 // A message to itself isn't slowed that way.
