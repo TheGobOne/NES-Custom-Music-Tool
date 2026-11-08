@@ -1256,9 +1256,9 @@ const GAME_MODES = {
         defaultUses: [],                              // picked per track
         labels: { OriginalCredits: "Original credits", StatScroll: "Stat scroll", CharlockFinalFloor: "Charlock final floor" },
         groupPsc: 0, alwaysEnabled: true,
-        bankRoom: 0x21c5,                             // custom_music.c: 3 banks, modules at FT_SONGS ($9E3B) to $BFFF (bank 5 to $BFFA); bank 4 adds 3.5 KB for smaller songs
+        bankRoom: 0x21b3,                             // custom_music.c: 3 banks, modules at FT_SONGS ($9E4D) to $BFFF (bank 5 to $BFFA); bank 4 adds 3.5 KB for smaller songs
         banks: 3,
-        extraRoom: 3557, extraMax: 3104,              // bank 4: $9E3B-$A000 and $B3E0-$C000, around the credits code
+        extraRoom: 3539, extraMax: 3104,              // bank 4: $9E4D-$A000 and $B3E0-$C000, around the credits code
         songsPerSeed: 24,                             // custom_music.c MAX_PLACED
         skipsWhenFull: true,                          // songs that don't fit are skipped; the seed still builds
         minSize: 256,                                 // custom_music.c MIN_SONG_SIZE: smaller tracks need an event tag
