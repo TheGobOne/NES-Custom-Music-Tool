@@ -1256,8 +1256,9 @@ const GAME_MODES = {
         defaultUses: [],                              // picked per track
         labels: { OriginalCredits: "Original credits", StatScroll: "Stat scroll", CharlockFinalFloor: "Charlock final floor" },
         groupPsc: 0, alwaysEnabled: true,
-        bankRoom: 0x2217,                             // custom_music.c: 3 banks, modules at FT_SONGS ($9DE9) to $BFFF (bank 5 to $BFFA)
+        bankRoom: 0x21d5,                             // custom_music.c: 3 banks, modules at FT_SONGS ($9E2B) to $BFFF (bank 5 to $BFFA); bank 4 adds 3.5 KB for smaller songs
         banks: 3,
+        extraRoom: 3573, extraMax: 3104,              // bank 4: $9E2B-$A000 and $B3E0-$C000, around the credits code
         songsPerSeed: 24,                             // custom_music.c MAX_PLACED
         skipsWhenFull: true,                          // songs that don't fit are skipped; the seed still builds
         minSize: 256,                                 // custom_music.c MIN_SONG_SIZE: smaller tracks need an event tag
@@ -3157,7 +3158,7 @@ function roomCheckText(cfg, tracks) {
   if (cfg.skipsWhenFull) {
     const total = tracks.reduce((a, t) => a + t.data.length, 0);
     const short = tracks.filter(t => t.data.length < cfg.minSize && !t.tags.some(u => cfg.eventUses.includes(u))).length;
-    return `DWR room check: ${tracks.length} ticked tracks (${kb(total)}). A seed holds up to ${cfg.songsPerSeed} songs in ${cfg.banks} banks of ${kb(cfg.bankRoom)}. `
+    return `DWR room check: ${tracks.length} ticked tracks (${kb(total)}). A seed holds up to ${cfg.songsPerSeed} songs in ${cfg.banks} banks of ${kb(cfg.bankRoom)}${cfg.extraRoom ? ` plus ${kb(cfg.extraRoom)} for songs up to ${kb(cfg.extraMax)}` : ""}. `
       + `Songs that don't fit are skipped, and that use keeps another song or the game's own music.`
       + (short ? ` ⚠ ${short} track(s) under ${cfg.minSize} bytes won't be used unless tagged for an event or floor.` : "");
   }
