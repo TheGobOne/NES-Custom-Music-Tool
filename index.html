@@ -1252,10 +1252,9 @@ const GAME_MODES = {
   dw: { key: "dw", game: "Dragon Warrior", randomizer: "DWR",
         uses: ["Title", "Tantegel", "Town", "Overworld", "Charlock", "Cave", "Encounter", "Dragonlord",
                "CharlockFinalFloor", "Hauksness",
-               "OriginalCredits", "StatScroll", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"],
+               "OriginalCredits", "StatScroll"],
         defaultUses: [],                              // picked per track
-        labels: { OriginalCredits: "Original credits", StatScroll: "Stat scroll", CharlockFinalFloor: "Charlock final floor",
-                  SilverHarp: "Silver harp", FairyFlute: "Fairy flute", RainbowBridge: "Rainbow bridge", LevelUp: "Level up" },
+        labels: { OriginalCredits: "Original credits", StatScroll: "Stat scroll", CharlockFinalFloor: "Charlock final floor" },
         groupPsc: 0, alwaysEnabled: true,
         bankRoom: 0x2242,                             // custom_music.c: 2 banks, modules at FT_SONGS ($9DBE) to $BFFF
         banks: 2,
@@ -1263,7 +1262,7 @@ const GAME_MODES = {
         skipsWhenFull: true,                          // songs that don't fit are skipped; the seed still builds
         minSize: 256,                                 // custom_music.c MIN_SONG_SIZE: smaller tracks need an event tag
         eventUses: ["CharlockFinalFloor", "Hauksness",
-                    "OriginalCredits", "StatScroll", "SilverHarp", "FairyFlute", "RainbowBridge", "Death", "Inn", "Gwaelin", "Cursed", "Victory", "LevelUp"] },
+                    "OriginalCredits", "StatScroll"] },
 };
 // The games a Combined list tags for, and the short name of each.
 const COMBINED_GAMES = ["z1", "z2", "dw"];
